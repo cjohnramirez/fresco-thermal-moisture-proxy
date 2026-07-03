@@ -168,3 +168,82 @@
     padding: 0;
   }
 }
+
+@layer components {
+  .project-docs-markdown {
+    @apply max-w-none text-sm leading-7 text-foreground;
+  }
+
+  .project-docs-markdown h1 {
+    @apply mb-4 text-2xl font-semibold;
+  }
+
+  .project-docs-markdown h2 {
+    @apply mt-6 mb-3 text-xl font-semibold;
+  }
+
+  .project-docs-markdown h3 {
+    @apply mt-5 mb-2 text-base font-semibold;
+  }
+
+  .project-docs-markdown p {
+    @apply mb-3;
+  }
+
+  .project-docs-markdown a {
+    @apply text-primary underline underline-offset-4;
+  }
+
+  .project-docs-markdown blockquote {
+    @apply border-l border-border pl-4 text-muted-foreground;
+  }
+
+  .project-docs-markdown ul,
+  .project-docs-markdown ol {
+    @apply mb-4;
+  }
+
+  .project-docs-markdown ul {
+    @apply list-disc;
+  }
+
+  .project-docs-markdown ol {
+    @apply list-decimal;
+  }
+
+  .project-docs-markdown li {
+    @apply ml-5;
+  }
+
+  .project-docs-markdown :not(pre) > code {
+    @apply rounded-sm border border-border bg-muted px-1 text-foreground;
+  }
+
+  .project-docs-markdown table {
+    @apply my-4 block w-full overflow-x-auto rounded-lg border border-border text-sm;
+  }
+
+  .project-docs-markdown th {
+    @apply border border-border bg-muted p-2 text-left font-medium text-foreground;
+  }
+
+  .project-docs-markdown td {
+    @apply border border-border p-2 text-foreground;
+  }
+
+  .project-docs-markdown svg {
+    @apply my-4 max-w-full rounded-lg border border-border bg-card p-3 text-foreground;
+  }
+
+  .project-docs-markdown svg text {
+    fill: currentColor;
+  }
+
+  .project-docs-markdown svg [stroke]:not([stroke="none"]) {
+    stroke: currentColor;
+  }
+
+  .project-docs-markdown svg [fill]:not([fill="none"]) {
+    fill: currentColor;
+  }
+}

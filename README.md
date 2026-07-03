@@ -1,19 +1,35 @@
-# ESP32 Temperature Telemetry
+# Fresco Telemetry Dashboards
 
-PlatformIO firmware plus a Next.js dashboard for the Fresco grow-bag
-temperature experiment. The ESP32 uploads temperature payloads to Supabase.
-The web dashboard reads those rows, logs manual watering and +1 h weighing rows
-to Supabase, and computes the week-1 irrigation signals from `project.md`.
+PlatformIO firmware plus a Next.js dashboard for two Fresco greenhouse tools:
+
+- Grow-bag temperature telemetry: ESP32 DS18B20 probes upload read-only rows to Supabase.
+- Rain gauge telemetry: ESP32 SoftAP serves live tipping-bucket readings at `http://192.168.4.1`; the web dashboard stores rain data locally and can optionally sync it to Supabase.
 
 ```text
-DS18B20 buses -> ESP32 Wi-Fi -> Supabase -> Next.js dashboard
+temperature probes -> ESP32 Wi-Fi -> Supabase -> Next.js dashboard
+rain gauge AP -> Next.js API proxy -> IndexedDB/dashboard -> CSV or optional Supabase sync
 manual watering/weigh logs -> Supabase -> dashboard analytics
 ```
 
-See [API.md](API.md) for the firmware payload, Supabase schema, and dashboard
-API routes. See [project.md](project.md) for the experiment goal.
+Detailed references live in [docs/api.md](docs/api.md), [docs/data-contract.md](docs/data-contract.md), [docs/frontend-dashboard.md](docs/frontend-dashboard.md), [docs/growbag-temp-project.md](docs/growbag-temp-project.md), and [docs/rain-gauge-project.md](docs/rain-gauge-project.md). The web app also includes an allowlisted Markdown docs viewer for these files.
 
-## Wiring
+## Project Structure
+
+```text
+temperature/
+├── include/
+│   ├── RainGaugeConfig.h
+│   └── TemperatureConfig.h
+├── src/
+│   ├── rain_gauge.cpp
+│   └── temperature.cpp
+├── docs/
+└── web/
+```
+
+`platformio.ini` keeps the firmware separated by environment. The temperature build uses `src/temperature.cpp`; the rain gauge build uses `src/rain_gauge.cpp`.
+
+## Temperature Hardware
 
 | Channel id | Board label | ESP32 GPIO |
 | --- | --- | --- |
@@ -22,42 +38,56 @@ API routes. See [project.md](project.md) for the experiment goal.
 | `roots` | D16 | GPIO 16 |
 | `bottom` | D17 | GPIO 17 |
 
-All DS18B20 sensors share `3V3` and `GND`: red/VDD to `3V3`, black/GND to
-`GND`. Put a 4.7k pull-up resistor from each data line to `3V3`. The firmware
-also enables internal pull-ups, but the external resistors are the reliable
-part.
+All DS18B20 sensors share `3V3` and `GND`. Use a 4.7k pull-up resistor from each data line to `3V3`.
+
+## Rain Gauge Hardware
+
+| HW-477 pin | ESP32 pin |
+| --- | --- |
+| S | GPIO 34 |
+| + | 3V3 |
+| - | GND |
+
+GPIO 34 is input-only and has no internal pull-up. The HW-477 module's onboard pull-up is part of the intended wiring.
 
 ## Firmware Setup
 
-Set firmware constants in [include/TemperatureConfig.h](include/TemperatureConfig.h):
+Temperature constants are in [include/TemperatureConfig.h](include/TemperatureConfig.h):
 
-- `WIFI_SSID` and `WIFI_PASSWORD`: a 2.4 GHz Wi-Fi network.
-- `SUPABASE_URL`: your Supabase project URL, without a trailing slash.
-- `SUPABASE_ANON_KEY`: the anon key allowed to insert telemetry.
-- `SUPABASE_TABLE`: defaults to `temperature_readings`.
+- `WIFI_SSID` and `WIFI_PASSWORD`
+- `SUPABASE_URL`
+- `SUPABASE_ANON_KEY`
+- `SUPABASE_TABLE`
 
-Create the Supabase tables and policies from [API.md](API.md#supabase-schema).
+Rain gauge constants are in [include/RainGaugeConfig.h](include/RainGaugeConfig.h):
+
+- `RAIN_GAUGE_AP_SSID`: `FrescoRainGauge`
+- `RAIN_GAUGE_AP_PASSWORD`: `raingauge`
+- `RAIN_GAUGE_TIP_PIN`: GPIO 34
+- `RAIN_GAUGE_ML_PER_TIP`: default calibration mean, about `2.3695 ml`
+- `RAIN_GAUGE_CATCHMENT_AREA_CM2`: set this to enable mm conversion
 
 ## Flash And Monitor
 
-Requires PlatformIO:
+Requires PlatformIO.
 
 ```powershell
+# Temperature firmware
 pio run -e nodemcu-32s
 pio run -e nodemcu-32s -t upload
 pio device monitor -e nodemcu-32s
+
+# Rain gauge firmware
+pio run -e rain-gauge
+pio run -e rain-gauge -t upload
+pio device monitor -e rain-gauge
 ```
 
-Expected boot log:
-
-```text
-Connecting to Wi-Fi "FrescoGreenovation". connected, IP 192.168.3.169
-Supabase POST -> 201
-```
+For the rain gauge, connect your computer to Wi-Fi SSID `FrescoRainGauge` with password `raingauge`, then open `http://192.168.4.1` or use the web dashboard proxy.
 
 ## Web Dashboard
 
-The dashboard lives in [web/](web/):
+The frontend lives in [web/](web/):
 
 ```powershell
 cd web
@@ -66,7 +96,9 @@ copy .env.example .env.local
 npm run dev
 ```
 
-Set these values in `web/.env.local`:
+Open `http://localhost:3000`.
+
+Set these values in `web/.env.local` for Supabase-backed temperature and optional rain sync:
 
 ```text
 NEXT_PUBLIC_SUPABASE_URL=
@@ -74,39 +106,34 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
 ```
 
-`SUPABASE_SERVICE_ROLE_KEY` is optional for local testing, but recommended for
-server routes that read and write dashboard data. Keep it server-only.
+`SUPABASE_SERVICE_ROLE_KEY` is server-only. CSV export and local rain storage still work when Supabase is not configured.
 
-Open `http://localhost:3000`. The dashboard reads `public.temperature_readings`,
-logs watering rows to `public.irrigation_events`, and derives the +1 h weigh
-timer from open Supabase rows.
+## Dashboard Modes
 
-## Dashboard Workflow
+The sidebar header has a dashboard dropdown above the view list:
 
-- `Dashboard`: watering status, weigh completion, sensor health, cloud row
-  count, thermal spread, latest probe values, and watering markers on the
-  temperature chart.
-- `Monitor`: log watering, log +1 h weight, edit/archive watering events, and
-  page through cloud readings with `50`, `100`, or `250` rows per page.
-- `Analytics`: bucketed charts for temperature, baseline drift, daily water use,
-  first-hour drainage, root temperature swing, and watering recovery windows.
-- Chart headers share 1 hour, 1 day, and 1 week range tabs for fast default
-  rendering.
-- `Parse Full Week`: explicitly fetches up to 7 days server-side and returns
-  compact full-resolution metrics without rendering every raw point.
+- Temperature dashboard: reads `temperature_readings`, logs watering/weighing rows, and computes the week-1 grow-bag irrigation signals.
+- Rain Gauge dashboard: connects to the ESP32 AP through Next API proxy routes, stores readings in IndexedDB, imports calibration CSVs, exports CSVs, and optionally syncs to rain-specific Supabase tables.
+- Project Docs: renders allowlisted Markdown files from the repository.
 
-The app does not store high-frequency readings in browser storage. Only light UI
-state is kept in memory.
+Each dashboard keeps the same three views:
 
-## CSV Export
+- `Dashboard`: current status and summary cards.
+- `Monitor`: connection/logging controls, raw packets, and paginated readings.
+- `Analytics`: charts, range tabs, exports, and computed metrics.
 
-Use the dashboard `Export` menu to download:
+## Rain Gauge Workflow
 
-- the current paged temperature readings, one CSV row per channel reading
-- active irrigation events
-- full-week analysis metrics after `Parse Full Week` completes
+1. Flash the rain gauge firmware and connect to SSID `FrescoRainGauge`.
+2. Start the web app locally.
+3. Switch the sidebar dashboard selector to `Rain Gauge`.
+4. Keep AP URL as `http://192.168.4.1` unless using a localhost mock.
+5. Click `Connect` to open the SSE stream through `/api/rain-gauge/events`.
+6. Use `Reset Session` only when you want to zero the ESP32 counters and start a new local session.
+7. Import the reference calibration CSV from Analytics when recalibrating the gauge.
+8. Export current page, full local session, calibration rows, or analytics summary as CSV.
 
-CSV export still works even when Supabase sync is unavailable for new rows.
+Rain readings are stored in IndexedDB, not localStorage. localStorage is used only for small preferences such as the active dashboard and AP URL.
 
 ## Verification
 
@@ -118,4 +145,3 @@ npm run typecheck
 npm run test
 npm run build
 ```
-"# fresco-thermal-moisture-proxy" 

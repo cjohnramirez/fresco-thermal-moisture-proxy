@@ -1,5 +1,5 @@
-import { FrescoDashboard } from "@/features/dashboard/shell/fresco-dashboard";
+import { FrescoAppShell } from "@/features/app-shell/fresco-app-shell"
 
 export default function Home() {
-  return <FrescoDashboard />;
+  return <FrescoAppShell />
 }
