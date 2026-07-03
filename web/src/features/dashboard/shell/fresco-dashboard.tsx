@@ -9,18 +9,18 @@ import {
   RefreshCwIcon,
 } from "lucide-react"
 
-import { CloudBadge } from "@/components/dashboard/cloud-badge"
-import type { View } from "@/components/dashboard/dashboard-types"
-import { ExportMenu } from "@/components/dashboard/export-menu"
+import { CloudBadge } from "@/features/dashboard/shell/cloud-badge"
+import type { View } from "@/features/dashboard/lib/dashboard-types"
+import { ExportMenu } from "@/features/dashboard/shell/export-menu"
 import {
   LogWateringDialog,
   LogWeightDialog,
-} from "@/components/dashboard/irrigation-dialogs"
-import { ModeToggle } from "@/components/dashboard/mode-toggle"
-import { useFrescoDashboard } from "@/components/dashboard/use-fresco-dashboard"
-import { AnalyticsView } from "@/components/dashboard/views/analytics-view"
-import { DashboardView } from "@/components/dashboard/views/dashboard-view"
-import { MonitorView } from "@/components/dashboard/views/monitor-view"
+} from "@/features/dashboard/components/irrigation-dialogs"
+import { ModeToggle } from "@/features/dashboard/shell/mode-toggle"
+import { useFrescoDashboard } from "@/features/dashboard/hooks/use-fresco-dashboard"
+import { AnalyticsView } from "@/features/dashboard/views/analytics-view"
+import { DashboardView } from "@/features/dashboard/views/dashboard-view"
+import { MonitorView } from "@/features/dashboard/views/monitor-view"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
@@ -44,6 +44,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import { Spinner } from "@/components/ui/spinner"
 
 const navItems = [
   { id: "dashboard", label: "Dashboard", icon: GaugeIcon },
@@ -58,7 +59,12 @@ const navItems = [
 export function FrescoDashboard() {
   const dashboard = useFrescoDashboard()
   const [wateringDialogOpen, setWateringDialogOpen] = React.useState(false)
+  const [wateringDialogKey, setWateringDialogKey] = React.useState(0)
   const [weightDialogOpen, setWeightDialogOpen] = React.useState(false)
+  const openWateringDialog = React.useCallback(() => {
+    setWateringDialogKey(Date.now())
+    setWateringDialogOpen(true)
+  }, [])
 
   return (
     <SidebarProvider>
@@ -130,7 +136,7 @@ export function FrescoDashboard() {
           </div>
         </SidebarFooter>
       </Sidebar>
-      <SidebarInset>
+      <SidebarInset className="min-w-0 overflow-hidden">
         <header className="flex min-h-14 flex-col items-stretch gap-2 border-b px-3 py-2 sm:flex-row sm:items-center sm:justify-between sm:px-4">
           <div className="flex min-w-0 items-center gap-2">
             <SidebarTrigger />
@@ -141,7 +147,10 @@ export function FrescoDashboard() {
           <div className="flex flex-wrap items-center gap-2">
             <CloudBadge state={dashboard.cloudState} />
             <ExportMenu
+              cloudState={dashboard.cloudState}
+              eventsError={dashboard.eventsError}
               irrigationEvents={dashboard.irrigationEvents}
+              loadingState={dashboard.loadingState}
               readings={dashboard.readings}
               sessionId={dashboard.sessionId}
               weekAnalysis={dashboard.weekAnalysis}
@@ -149,24 +158,29 @@ export function FrescoDashboard() {
             <Button
               type="button"
               onClick={dashboard.refreshFromSupabase}
-              disabled={dashboard.cloudState.status === "loading"}
+              disabled={dashboard.loadingState.cloudRefreshing}
             >
-              <RefreshCwIcon data-icon="inline-start" />
-              Refresh
+              {dashboard.loadingState.cloudRefreshing ? (
+                <Spinner data-icon="inline-start" />
+              ) : (
+                <RefreshCwIcon data-icon="inline-start" />
+              )}
+              {dashboard.loadingState.cloudRefreshing ? "Refreshing..." : "Refresh"}
             </Button>
           </div>
         </header>
 
         <ScrollArea className="min-h-0 flex-1">
-          <main className="p-4">
+          <main className="min-w-0 overflow-x-hidden p-3 sm:p-4">
             {dashboard.activeView === "dashboard" && (
               <DashboardView
                 chartRange={dashboard.chartRange}
                 cloudState={dashboard.cloudState}
                 health={dashboard.health}
                 latest={dashboard.latest}
+                loadingState={dashboard.loadingState}
                 onChartRangeChange={dashboard.setChartRange}
-                onLogWatering={() => setWateringDialogOpen(true)}
+                onLogWatering={openWateringDialog}
                 onLogWeight={() => setWeightDialogOpen(true)}
                 spread={dashboard.spread}
                 summary={dashboard.summary}
@@ -180,8 +194,9 @@ export function FrescoDashboard() {
                 cloudState={dashboard.cloudState}
                 includeArchived={dashboard.includeArchived}
                 irrigationEvents={dashboard.irrigationEvents}
+                loadingState={dashboard.loadingState}
                 loadSample={dashboard.loadSample}
-                onLogWatering={() => setWateringDialogOpen(true)}
+                onLogWatering={openWateringDialog}
                 onLogWeight={() => setWeightDialogOpen(true)}
                 pagination={dashboard.pagination}
                 readingQuery={dashboard.readingQuery}
@@ -196,6 +211,7 @@ export function FrescoDashboard() {
             {dashboard.activeView === "analytics" && (
               <AnalyticsView
                 chartRange={dashboard.chartRange}
+                loadingState={dashboard.loadingState}
                 onChartRangeChange={dashboard.setChartRange}
                 runWeekAnalysis={dashboard.runWeekAnalysis}
                 setWeekRange={dashboard.setWeekRange}
@@ -209,6 +225,7 @@ export function FrescoDashboard() {
         </ScrollArea>
       </SidebarInset>
       <LogWateringDialog
+        key={wateringDialogKey}
         open={wateringDialogOpen}
         onOpenChange={setWateringDialogOpen}
         onSubmit={dashboard.createIrrigationEvent}

@@ -1,5 +1,5 @@
 import { Badge } from "@/components/ui/badge"
-import type { CloudState } from "@/components/dashboard/dashboard-types"
+import type { CloudState } from "@/features/dashboard/lib/dashboard-types"
 
 export function CloudBadge({ state }: { state: CloudState }) {
   if (state.status === "error") {

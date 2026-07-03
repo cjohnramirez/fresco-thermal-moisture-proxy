@@ -191,7 +191,7 @@ function ChartTooltipContent({
   return (
     <div
       className={cn(
-        "grid min-w-48 max-w-80 items-start gap-2 rounded-lg border border-border/50 bg-background px-3 py-2 text-xs shadow-xl",
+        "grid min-w-56 max-w-[22rem] items-start gap-2 rounded-lg border border-border/50 bg-background px-3 py-2 text-xs shadow-xl",
         className
       )}
     >
@@ -222,7 +222,7 @@ function ChartTooltipContent({
                       !hideIndicator && (
                         <div
                           className={cn(
-                            "shrink-0 rounded-[2px] border-(--color-border) bg-(--color-bg)",
+                            "shrink-0 rounded-xs border-(--color-border) bg-(--color-bg)",
                             {
                               "h-2.5 w-2.5": indicator === "dot",
                               "w-1": indicator === "line",
@@ -242,13 +242,13 @@ function ChartTooltipContent({
                     )}
                     <div
                       className={cn(
-                        "flex min-w-0 flex-1 justify-between gap-4 leading-none",
+                        "flex min-w-0 flex-1 justify-between gap-5 leading-none",
                         nestLabel ? "items-end" : "items-center"
                       )}
                     >
                       <div className="grid min-w-0 gap-1.5">
                         {nestLabel ? tooltipLabel : null}
-                        <span className="break-words text-muted-foreground">
+                        <span className="min-w-0 break-words text-muted-foreground">
                           {itemConfig?.label ?? item.name}
                         </span>
                       </div>
@@ -313,7 +313,7 @@ function ChartLegendContent({
                 <itemConfig.icon />
               ) : (
                 <div
-                  className="h-2 w-2 shrink-0 rounded-[2px]"
+                  className="h-2 w-2 shrink-0 rounded-xs"
                   style={{
                     backgroundColor: item.color,
                   }}

@@ -18,10 +18,11 @@ import {
   YAxis,
 } from "recharts"
 
-import { ChartCardHeader } from "@/components/dashboard/chart-card-header"
-import { chartConfig } from "@/components/dashboard/dashboard-config"
-import { MetricCard } from "@/components/dashboard/metric-card"
-import { TemperatureChart } from "@/components/dashboard/temperature-chart"
+import { ChartCardHeader } from "@/features/dashboard/components/chart-card-header"
+import { ChartSkeleton } from "@/features/dashboard/components/loading-states"
+import { chartConfig } from "@/features/dashboard/lib/dashboard-config"
+import { MetricCard } from "@/features/dashboard/components/metric-card"
+import { TemperatureChart } from "@/features/dashboard/components/temperature-chart"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -42,6 +43,7 @@ import {
   FieldLabel,
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { Spinner } from "@/components/ui/spinner"
 import {
   baselineVerdictLabel,
   formatManilaDateTime,
@@ -51,7 +53,10 @@ import type {
   ExperimentSummary,
   WeekAnalysisResult,
 } from "@/lib/experiment/types"
-import type { CloudState } from "@/components/dashboard/dashboard-types"
+import type {
+  CloudState,
+  DashboardLoadingState,
+} from "@/features/dashboard/lib/dashboard-types"
 
 function average(values: number[]) {
   if (values.length === 0) {
@@ -71,6 +76,7 @@ function slope(value: number | null) {
 
 export function AnalyticsView({
   chartRange,
+  loadingState,
   onChartRangeChange,
   runWeekAnalysis,
   setWeekRange,
@@ -80,6 +86,7 @@ export function AnalyticsView({
   weekRange,
 }: {
   chartRange: ChartRange
+  loadingState: DashboardLoadingState
   onChartRangeChange: (value: ChartRange) => void
   runWeekAnalysis: () => void
   setWeekRange: React.Dispatch<
@@ -97,6 +104,7 @@ export function AnalyticsView({
   const parsedAt = weekAnalysis?.generatedAt
     ? formatManilaDateTime(weekAnalysis.generatedAt)
     : null
+  const chartsLoading = loadingState.summaryLoading
 
   return (
     <div className="flex flex-col gap-4">
@@ -106,18 +114,21 @@ export function AnalyticsView({
           value={slope(baseline?.slopeKgPerDay ?? null)}
           detail={baseline ? baselineVerdictLabel(baseline.verdict) : "Need drained weights"}
           icon={ScaleIcon}
+          loading={loadingState.summaryLoading}
         />
         <MetricCard
           label="Average Daily Water Use"
           value={kg(averageDailyUse)}
           detail={`${summary?.dailyWaterUse.length ?? 0} usable day gaps`}
           icon={DropletsIcon}
+          loading={loadingState.summaryLoading}
         />
         <MetricCard
           label="Watering Recovery Windows"
           value={String(summary?.wateringRecovery.length ?? 0)}
           detail="Root-zone samples within 2 h after watering"
           icon={ClockIcon}
+          loading={loadingState.summaryLoading}
         />
       </div>
 
@@ -137,6 +148,7 @@ export function AnalyticsView({
                   id="week-from"
                   type="datetime-local"
                   value={weekRange.from}
+                  disabled={weekAnalysisState.status === "loading"}
                   onChange={(event) =>
                     setWeekRange((current) => ({
                       ...current,
@@ -152,6 +164,7 @@ export function AnalyticsView({
                   id="week-to"
                   type="datetime-local"
                   value={weekRange.to}
+                  disabled={weekAnalysisState.status === "loading"}
                   onChange={(event) =>
                     setWeekRange((current) => ({
                       ...current,
@@ -168,9 +181,13 @@ export function AnalyticsView({
                 onClick={runWeekAnalysis}
                 disabled={weekAnalysisState.status === "loading"}
               >
-                <DatabaseIcon data-icon="inline-start" />
+                {weekAnalysisState.status === "loading" ? (
+                  <Spinner data-icon="inline-start" />
+                ) : (
+                  <DatabaseIcon data-icon="inline-start" />
+                )}
                 {weekAnalysisState.status === "loading"
-                  ? "Parsing Full Week"
+                  ? "Parsing Full Week..."
                   : "Parse Full Week"}
               </Button>
               {weekAnalysis && (
@@ -192,13 +209,18 @@ export function AnalyticsView({
             title="Temperature + Irrigation"
             description="Bucketed probe temperatures with watering markers."
             chartRange={chartRange}
+            loading={loadingState.summaryRefreshing}
             onChartRangeChange={onChartRangeChange}
           />
           <CardContent>
-            <TemperatureChart
-              data={summary?.temperatureSeries ?? []}
-              markers={summary?.irrigationMarkers ?? []}
-            />
+            {chartsLoading ? (
+              <ChartSkeleton />
+            ) : (
+              <TemperatureChart
+                data={summary?.temperatureSeries ?? []}
+                markers={summary?.irrigationMarkers ?? []}
+              />
+            )}
           </CardContent>
         </Card>
 
@@ -207,31 +229,36 @@ export function AnalyticsView({
             title="Baseline Drift"
             description="Pre-water and +1 h drained mass per day."
             chartRange={chartRange}
+            loading={loadingState.summaryRefreshing}
             onChartRangeChange={onChartRangeChange}
           />
           <CardContent>
-            <ChartContainer config={chartConfig} className="h-70 w-full aspect-auto">
-              <LineChart data={summary?.baseline.points ?? []} accessibilityLayer>
-                <CartesianGrid vertical={false} />
-                <XAxis dataKey="day" tickLine={false} axisLine={false} />
-                <YAxis tickLine={false} axisLine={false} width={36} />
-                <ChartTooltip content={<ChartTooltipContent />} />
-                <Line
-                  dataKey="drainedMassKg"
-                  type="monotone"
-                  stroke="var(--color-drainedMassKg)"
-                  strokeWidth={2}
-                  dot={false}
-                />
-                <Line
-                  dataKey="preMassKg"
-                  type="monotone"
-                  stroke="var(--color-preMassKg)"
-                  strokeWidth={2}
-                  dot={false}
-                />
-              </LineChart>
-            </ChartContainer>
+            {chartsLoading ? (
+              <ChartSkeleton className="h-[17.5rem]" />
+            ) : (
+              <ChartContainer config={chartConfig} className="h-[17.5rem] w-full aspect-auto">
+                <LineChart data={summary?.baseline.points ?? []} accessibilityLayer>
+                  <CartesianGrid vertical={false} />
+                  <XAxis dataKey="day" tickLine={false} axisLine={false} />
+                  <YAxis tickLine={false} axisLine={false} width={36} />
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                  <Line
+                    dataKey="drainedMassKg"
+                    type="monotone"
+                    stroke="var(--color-drainedMassKg)"
+                    strokeWidth={2}
+                    dot={false}
+                  />
+                  <Line
+                    dataKey="preMassKg"
+                    type="monotone"
+                    stroke="var(--color-preMassKg)"
+                    strokeWidth={2}
+                    dot={false}
+                  />
+                </LineChart>
+              </ChartContainer>
+            )}
           </CardContent>
         </Card>
 
@@ -240,18 +267,23 @@ export function AnalyticsView({
             title="Daily Water Use"
             description="Drained baseline minus next pre-water low point."
             chartRange={chartRange}
+            loading={loadingState.summaryRefreshing}
             onChartRangeChange={onChartRangeChange}
           />
           <CardContent>
-            <ChartContainer config={chartConfig} className="h-65 w-full aspect-auto">
-              <BarChart data={summary?.dailyWaterUse ?? []} accessibilityLayer>
-                <CartesianGrid vertical={false} />
-                <XAxis dataKey="day" tickLine={false} axisLine={false} />
-                <YAxis tickLine={false} axisLine={false} width={36} />
-                <ChartTooltip content={<ChartTooltipContent />} />
-                <Bar dataKey="waterUseKg" fill="var(--color-waterUseKg)" radius={4} />
-              </BarChart>
-            </ChartContainer>
+            {chartsLoading ? (
+              <ChartSkeleton className="h-[16.25rem]" />
+            ) : (
+              <ChartContainer config={chartConfig} className="h-[16.25rem] w-full aspect-auto">
+                <BarChart data={summary?.dailyWaterUse ?? []} accessibilityLayer>
+                  <CartesianGrid vertical={false} />
+                  <XAxis dataKey="day" tickLine={false} axisLine={false} />
+                  <YAxis tickLine={false} axisLine={false} width={36} />
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                  <Bar dataKey="waterUseKg" fill="var(--color-waterUseKg)" radius={4} />
+                </BarChart>
+              </ChartContainer>
+            )}
           </CardContent>
         </Card>
 
@@ -260,19 +292,24 @@ export function AnalyticsView({
             title="First-Hour Drainage"
             description="Post-water mass minus +1 h drained mass."
             chartRange={chartRange}
+            loading={loadingState.summaryRefreshing}
             onChartRangeChange={onChartRangeChange}
           />
           <CardContent>
-            <ChartContainer config={chartConfig} className="h-65 w-full aspect-auto">
-              <BarChart data={summary?.firstHourDrainage ?? []} accessibilityLayer>
-                <CartesianGrid vertical={false} />
-                <XAxis dataKey="day" tickLine={false} axisLine={false} />
-                <YAxis tickLine={false} axisLine={false} width={36} />
-                <ChartTooltip content={<ChartTooltipContent />} />
-                <ReferenceLine y={0} stroke="var(--border)" />
-                <Bar dataKey="drainageKg" fill="var(--color-drainageKg)" radius={4} />
-              </BarChart>
-            </ChartContainer>
+            {chartsLoading ? (
+              <ChartSkeleton className="h-[16.25rem]" />
+            ) : (
+              <ChartContainer config={chartConfig} className="h-[16.25rem] w-full aspect-auto">
+                <BarChart data={summary?.firstHourDrainage ?? []} accessibilityLayer>
+                  <CartesianGrid vertical={false} />
+                  <XAxis dataKey="day" tickLine={false} axisLine={false} />
+                  <YAxis tickLine={false} axisLine={false} width={36} />
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                  <ReferenceLine y={0} stroke="var(--border)" />
+                  <Bar dataKey="drainageKg" fill="var(--color-drainageKg)" radius={4} />
+                </BarChart>
+              </ChartContainer>
+            )}
           </CardContent>
         </Card>
 
@@ -281,18 +318,23 @@ export function AnalyticsView({
             title="Root Temperature Swing"
             description="Daily max minus min for the root-zone probe."
             chartRange={chartRange}
+            loading={loadingState.summaryRefreshing}
             onChartRangeChange={onChartRangeChange}
           />
           <CardContent>
-            <ChartContainer config={chartConfig} className="h-65 w-full aspect-auto">
-              <BarChart data={summary?.swingData ?? []} accessibilityLayer>
-                <CartesianGrid vertical={false} />
-                <XAxis dataKey="day" tickLine={false} axisLine={false} />
-                <YAxis tickLine={false} axisLine={false} width={36} />
-                <ChartTooltip content={<ChartTooltipContent />} />
-                <Bar dataKey="swing" fill="var(--color-swing)" radius={4} />
-              </BarChart>
-            </ChartContainer>
+            {chartsLoading ? (
+              <ChartSkeleton className="h-[16.25rem]" />
+            ) : (
+              <ChartContainer config={chartConfig} className="h-[16.25rem] w-full aspect-auto">
+                <BarChart data={summary?.swingData ?? []} accessibilityLayer>
+                  <CartesianGrid vertical={false} />
+                  <XAxis dataKey="day" tickLine={false} axisLine={false} />
+                  <YAxis tickLine={false} axisLine={false} width={36} />
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                  <Bar dataKey="swing" fill="var(--color-swing)" radius={4} />
+                </BarChart>
+              </ChartContainer>
+            )}
           </CardContent>
         </Card>
 
@@ -301,19 +343,24 @@ export function AnalyticsView({
             title="Watering Recovery Windows"
             description="Root-zone temperature change within 2 h after watering."
             chartRange={chartRange}
+            loading={loadingState.summaryRefreshing}
             onChartRangeChange={onChartRangeChange}
           />
           <CardContent>
-            <ChartContainer config={chartConfig} className="h-65 w-full aspect-auto">
-              <BarChart data={summary?.wateringRecovery ?? []} accessibilityLayer>
-                <CartesianGrid vertical={false} />
-                <XAxis dataKey="event" tickLine={false} axisLine={false} />
-                <YAxis tickLine={false} axisLine={false} width={36} />
-                <ChartTooltip content={<ChartTooltipContent />} />
-                <ReferenceLine y={0} stroke="var(--border)" />
-                <Bar dataKey="delta" fill="var(--chart-4)" radius={4} />
-              </BarChart>
-            </ChartContainer>
+            {chartsLoading ? (
+              <ChartSkeleton className="h-[16.25rem]" />
+            ) : (
+              <ChartContainer config={chartConfig} className="h-[16.25rem] w-full aspect-auto">
+                <BarChart data={summary?.wateringRecovery ?? []} accessibilityLayer>
+                  <CartesianGrid vertical={false} />
+                  <XAxis dataKey="event" tickLine={false} axisLine={false} />
+                  <YAxis tickLine={false} axisLine={false} width={36} />
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                  <ReferenceLine y={0} stroke="var(--border)" />
+                  <Bar dataKey="delta" fill="var(--chart-4)" radius={4} />
+                </BarChart>
+              </ChartContainer>
+            )}
           </CardContent>
         </Card>
       </div>

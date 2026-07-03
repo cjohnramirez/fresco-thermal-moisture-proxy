@@ -7,29 +7,38 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import { Skeleton } from "@/components/ui/skeleton"
 
 export function MetricCard({
   detail,
   icon: Icon,
   label,
+  loading = false,
   value,
 }: {
   detail: string
   icon: React.ComponentType<React.SVGProps<SVGSVGElement>>
   label: string
+  loading?: boolean
   value: string
 }) {
   return (
     <Card>
       <CardHeader className="pb-2">
-        <div className="flex items-center justify-between gap-3">
-          <CardDescription>{label}</CardDescription>
+        <div className="flex min-w-0 items-center justify-between gap-3">
+          <CardDescription className="min-w-0 break-words">{label}</CardDescription>
           <Icon aria-hidden="true" className="text-muted-foreground" />
         </div>
-        <CardTitle className="text-2xl">{value}</CardTitle>
+        <CardTitle className="text-2xl">
+          {loading ? <Skeleton className="h-8 w-24" /> : value}
+        </CardTitle>
       </CardHeader>
       <CardContent>
-        <p className="text-sm text-muted-foreground">{detail}</p>
+        {loading ? (
+          <Skeleton className="h-4 w-40" />
+        ) : (
+          <p className="break-words text-sm text-muted-foreground">{detail}</p>
+        )}
       </CardContent>
     </Card>
   )

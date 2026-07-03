@@ -14,6 +14,16 @@ export type CloudState = {
   latestFetchAt: string | null
 }
 
+export type DashboardLoadingState = {
+  cloudRefreshing: boolean
+  eventsLoading: boolean
+  eventsRefreshing: boolean
+  readingsLoading: boolean
+  readingsRefreshing: boolean
+  summaryLoading: boolean
+  summaryRefreshing: boolean
+}
+
 export type ReadingsResponse = {
   ok: boolean
   readings?: NormalizedReading[]

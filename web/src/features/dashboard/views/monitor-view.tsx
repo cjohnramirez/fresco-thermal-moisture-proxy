@@ -6,13 +6,15 @@ import {
   ScaleIcon,
 } from "lucide-react";
 
-import { formatNumber, labelForChannel } from "@/components/dashboard/format";
-import { IrrigationEventsTable } from "@/components/dashboard/irrigation-events-table";
-import { StatusBadge } from "@/components/dashboard/status-badge";
+import { formatNumber, labelForChannel } from "@/features/dashboard/lib/format";
+import { IrrigationEventsTable } from "@/features/dashboard/components/irrigation-events-table";
+import { TableRowsSkeleton } from "@/features/dashboard/components/loading-states";
+import { StatusBadge } from "@/features/dashboard/components/status-badge";
 import type {
   CloudState,
+  DashboardLoadingState,
   ReadingQuery,
-} from "@/components/dashboard/dashboard-types";
+} from "@/features/dashboard/lib/dashboard-types";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,6 +27,7 @@ import {
 } from "@/components/ui/card";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Select,
   SelectContent,
@@ -59,6 +62,7 @@ export function MonitorView({
   cloudState,
   includeArchived,
   irrigationEvents,
+  loadingState,
   loadSample,
   onLogWatering,
   onLogWeight,
@@ -75,6 +79,7 @@ export function MonitorView({
   cloudState: CloudState;
   includeArchived: boolean;
   irrigationEvents: IrrigationEvent[];
+  loadingState: DashboardLoadingState;
   loadSample: () => void;
   onLogWatering: () => void;
   onLogWeight: () => void;
@@ -94,9 +99,11 @@ export function MonitorView({
     1,
     Math.ceil(pagination.totalRows / pagination.pageSize),
   );
+  const readingsBusy =
+    loadingState.readingsLoading || loadingState.readingsRefreshing;
 
   return (
-    <div className="grid gap-4 xl:grid-cols-[minmax(340px,0.8fr)_minmax(620px,1.2fr)]">
+    <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(320px,0.8fr)_minmax(0,1.2fr)]">
       <div className="flex min-w-0 flex-col gap-4">
         <Card>
           <CardHeader>
@@ -110,12 +117,21 @@ export function MonitorView({
               <Button
                 type="button"
                 onClick={refreshFromSupabase}
-                disabled={cloudState.status === "loading"}
+                disabled={loadingState.cloudRefreshing}
               >
-                <RefreshCwIcon data-icon="inline-start" />
-                Refresh
+                {loadingState.cloudRefreshing ? (
+                  <Spinner data-icon="inline-start" />
+                ) : (
+                  <RefreshCwIcon data-icon="inline-start" />
+                )}
+                {loadingState.cloudRefreshing ? "Refreshing..." : "Refresh"}
               </Button>
-              <Button type="button" variant="outline" onClick={loadSample}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={loadSample}
+                disabled={loadingState.cloudRefreshing}
+              >
                 Load Sample
               </Button>
             </div>
@@ -180,26 +196,29 @@ export function MonitorView({
             <IrrigationEventsTable
               events={irrigationEvents}
               includeArchived={includeArchived}
+              loading={loadingState.eventsLoading}
               onArchive={archiveIrrigationEvent}
               onIncludeArchivedChange={setIncludeArchived}
               onUpdate={updateIrrigationEvent}
+              refreshing={loadingState.eventsRefreshing}
             />
           </CardContent>
         </Card>
       </div>
 
-      <Card>
+      <Card className="min-w-0">
         <CardHeader>
           <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div className="min-w-0">
               <CardTitle>Cloud Readings</CardTitle>
-              <CardDescription>
+              <CardDescription className="flex flex-wrap items-center gap-2 wrap-break-word">
+                {readingsBusy && <Spinner />}
                 Page {pagination.page} of {pageCount}; {readings.length} channel
                 rows shown.
               </CardDescription>
             </div>
-            <FieldGroup className="flex gap-2 lg:max-w-md sm:flex-col md:flex-row">
-              <Field>
+            <FieldGroup className="flex flex-row gap-2 justify-end">
+              <Field className="md:w-full lg:w-36">
                 <FieldLabel
                   htmlFor="reading-channel-filter"
                   className="sr-only"
@@ -215,6 +234,8 @@ export function MonitorView({
                   <SelectTrigger
                     id="reading-channel-filter"
                     aria-label="Filter Channel"
+                    className="w-full"
+                    disabled={readingsBusy}
                   >
                     <SelectValue />
                   </SelectTrigger>
@@ -230,7 +251,7 @@ export function MonitorView({
                   </SelectContent>
                 </Select>
               </Field>
-              <Field>
+              <Field className="md:w-full lg:w-36">
                 <FieldLabel htmlFor="reading-status-filter" className="sr-only">
                   Status
                 </FieldLabel>
@@ -243,6 +264,8 @@ export function MonitorView({
                   <SelectTrigger
                     id="reading-status-filter"
                     aria-label="Filter Status"
+                    className="w-full"
+                    disabled={readingsBusy}
                   >
                     <SelectValue />
                   </SelectTrigger>
@@ -257,7 +280,7 @@ export function MonitorView({
                   </SelectContent>
                 </Select>
               </Field>
-              <Field>
+              <Field className="md:w-full lg:w-36">
                 <FieldLabel htmlFor="reading-page-size" className="sr-only">
                   Rows Per Page
                 </FieldLabel>
@@ -270,6 +293,8 @@ export function MonitorView({
                   <SelectTrigger
                     id="reading-page-size"
                     aria-label="Rows Per Page"
+                    className="w-full"
+                    disabled={readingsBusy}
                   >
                     <SelectValue />
                   </SelectTrigger>
@@ -286,7 +311,10 @@ export function MonitorView({
           </div>
         </CardHeader>
         <CardContent>
-          <ScrollArea className="h-140 rounded-lg border">
+          <ScrollArea
+            className="h-[min(34rem,calc(100dvh-18rem))] min-h-80 rounded-lg border"
+            aria-busy={readingsBusy}
+          >
             <Table>
               <TableHeader>
                 <TableRow>
@@ -298,7 +326,9 @@ export function MonitorView({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {readings.length === 0 ? (
+                {loadingState.readingsLoading ? (
+                  <TableRowsSkeleton columns={5} rows={8} />
+                ) : readings.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={5} className="h-24 text-center">
                       No readings on this page.
@@ -330,6 +360,16 @@ export function MonitorView({
                       </TableRow>
                     ))
                 )}
+                {loadingState.readingsRefreshing && readings.length > 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={5}>
+                      <div className="flex items-center justify-center gap-2 py-3 text-sm text-muted-foreground">
+                        <Spinner />
+                        Updating page...
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ) : null}
               </TableBody>
             </Table>
           </ScrollArea>
@@ -338,18 +378,19 @@ export function MonitorView({
           <Button
             type="button"
             variant="outline"
-            disabled={pagination.page <= 1}
+            disabled={pagination.page <= 1 || readingsBusy}
             onClick={() => updateReadingQuery({ page: pagination.page - 1 })}
           >
             Previous
           </Button>
-          <div className="text-sm text-muted-foreground">
+          <div className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
+            {readingsBusy && <Spinner />}
             {pagination.totalRows} raw rows
           </div>
           <Button
             type="button"
             variant="outline"
-            disabled={pagination.page >= pageCount}
+            disabled={pagination.page >= pageCount || readingsBusy}
             onClick={() => updateReadingQuery({ page: pagination.page + 1 })}
           >
             Next

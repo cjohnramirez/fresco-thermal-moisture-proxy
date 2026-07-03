@@ -40,7 +40,7 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className="h-full antialiased"
+      className="h-full font-sans antialiased"
     >
       <body className="min-h-full">
         <ThemeProvider>

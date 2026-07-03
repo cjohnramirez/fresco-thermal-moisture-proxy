@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
+import { Spinner } from "@/components/ui/spinner"
 import { Switch } from "@/components/ui/switch"
 import {
   Table,
@@ -27,6 +28,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
+import { TableRowsSkeleton } from "@/features/dashboard/components/loading-states"
 import {
   formatManilaDateTime,
   lateWeighLabel,
@@ -175,8 +177,13 @@ function IrrigationEventEditRow({
             autoComplete="off"
           />
           <div className="flex gap-2 md:col-span-1">
-            <Button type="submit" size="icon" aria-label="Save event" disabled={saving}>
-              <CheckIcon />
+            <Button
+              type="submit"
+              size="icon"
+              aria-label={saving ? "Saving event" : "Save event"}
+              disabled={saving}
+            >
+              {saving ? <Spinner /> : <CheckIcon />}
             </Button>
             <Button
               type="button"
@@ -197,27 +204,34 @@ function IrrigationEventEditRow({
 export function IrrigationEventsTable({
   events,
   includeArchived,
+  loading = false,
   onArchive,
   onIncludeArchivedChange,
   onUpdate,
+  refreshing = false,
 }: {
   events: IrrigationEvent[]
   includeArchived: boolean
+  loading?: boolean
   onArchive: (id: string) => Promise<void>
   onIncludeArchivedChange: (next: boolean) => void
   onUpdate: (id: string, payload: Record<string, unknown>) => Promise<unknown>
+  refreshing?: boolean
 }) {
   const [editingId, setEditingId] = React.useState<string | null>(null)
+  const [archivingId, setArchivingId] = React.useState<string | null>(null)
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-center justify-between gap-3">
-        <div className="text-sm text-muted-foreground">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          {(loading || refreshing) && <Spinner />}
           {events.length} watering events
         </div>
         <label className="flex items-center gap-2 text-sm">
           <Switch
             checked={includeArchived}
+            disabled={loading}
             onCheckedChange={onIncludeArchivedChange}
           />
           Show archived
@@ -238,7 +252,9 @@ export function IrrigationEventsTable({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {events.length === 0 ? (
+            {loading ? (
+              <TableRowsSkeleton columns={8} rows={5} />
+            ) : events.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={8} className="h-24 text-center">
                   No watering events logged.
@@ -296,12 +312,23 @@ export function IrrigationEventsTable({
                                 type="button"
                                 variant="outline"
                                 size="icon"
-                                aria-label="Archive event"
-                                disabled={event.archivedAt !== null}
+                                aria-label={
+                                  archivingId === event.id
+                                    ? "Archiving event"
+                                    : "Archive event"
+                                }
+                                disabled={
+                                  event.archivedAt !== null ||
+                                  archivingId === event.id
+                                }
                               />
                             }
                           >
-                            <ArchiveIcon />
+                            {archivingId === event.id ? (
+                              <Spinner />
+                            ) : (
+                              <ArchiveIcon />
+                            )}
                           </AlertDialogTrigger>
                           <AlertDialogContent>
                             <AlertDialogHeader>
@@ -313,9 +340,17 @@ export function IrrigationEventsTable({
                             <AlertDialogFooter>
                               <AlertDialogCancel>Cancel</AlertDialogCancel>
                               <AlertDialogAction
-                                onClick={() => void onArchive(event.id)}
+                                disabled={archivingId === event.id}
+                                onClick={async () => {
+                                  setArchivingId(event.id)
+                                  try {
+                                    await onArchive(event.id)
+                                  } finally {
+                                    setArchivingId(null)
+                                  }
+                                }}
                               >
-                                Archive
+                                {archivingId === event.id ? "Archiving..." : "Archive"}
                               </AlertDialogAction>
                             </AlertDialogFooter>
                           </AlertDialogContent>

@@ -1,4 +1,4 @@
-import { FrescoDashboard } from "@/components/dashboard/fresco-dashboard";
+import { FrescoDashboard } from "@/features/dashboard/shell/fresco-dashboard";
 
 export default function Home() {
   return <FrescoDashboard />;

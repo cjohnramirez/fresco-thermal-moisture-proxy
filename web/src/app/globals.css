@@ -49,38 +49,38 @@
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.627 0.194 149.214);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
+  --primary: oklch(0.527 0.154 150.069);
+  --primary-foreground: oklch(0.982 0.018 155.826);
+  --secondary: oklch(0.967 0.001 286.375);
+  --secondary-foreground: oklch(0.21 0.006 285.885);
   --muted: oklch(0.97 0 0);
   --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.982 0.018 155.826);
-  --accent-foreground: oklch(0.448 0.119 151.328);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
-  --ring: oklch(0.627 0.194 149.214);
-  --chart-1: oklch(0.627 0.194 149.214);
-  --chart-2: oklch(0.53 0.1 80);
-  --chart-3: oklch(0.48 0.1 25);
-  --chart-4: oklch(0.52 0.11 285);
-  --chart-5: oklch(0.54 0.12 340);
+  --ring: oklch(0.527 0.154 150.069);
+  --chart-1: oklch(0.527 0.154 150.069);
+  --chart-2: oklch(0.56 0.12 78);
+  --chart-3: oklch(0.55 0.13 28);
+  --chart-4: oklch(0.56 0.12 285);
+  --chart-5: oklch(0.57 0.13 340);
   --radius: 0.625rem;
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
   --sidebar-primary: oklch(0.627 0.194 149.214);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.982 0.018 155.826);
-  --sidebar-accent-foreground: oklch(0.448 0.119 151.328);
+  --sidebar-primary-foreground: oklch(0.982 0.018 155.826);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
 }
 
 .dark {
@@ -90,29 +90,29 @@
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.205 0 0);
   --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.792 0.209 151.711);
-  --primary-foreground: oklch(0.266 0.065 152.934);
-  --secondary: oklch(0.269 0 0);
+  --primary: oklch(0.448 0.119 151.328);
+  --primary-foreground: oklch(0.982 0.018 155.826);
+  --secondary: oklch(0.274 0.006 286.033);
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.269 0 0);
   --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.266 0.065 152.934);
-  --accent-foreground: oklch(0.962 0.044 156.743);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.704 0.191 22.216);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.792 0.209 151.711);
-  --chart-1: oklch(0.792 0.209 151.711);
-  --chart-2: oklch(0.76 0.12 80);
-  --chart-3: oklch(0.72 0.13 25);
-  --chart-4: oklch(0.72 0.13 285);
-  --chart-5: oklch(0.72 0.14 340);
+  --ring: oklch(0.723 0.219 149.579);
+  --chart-1: oklch(0.723 0.219 149.579);
+  --chart-2: oklch(0.76 0.14 78);
+  --chart-3: oklch(0.72 0.15 28);
+  --chart-4: oklch(0.72 0.14 285);
+  --chart-5: oklch(0.74 0.15 340);
   --sidebar: oklch(0.205 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.792 0.209 151.711);
-  --sidebar-primary-foreground: oklch(0.266 0.065 152.934);
-  --sidebar-accent: oklch(0.266 0.065 152.934);
-  --sidebar-accent-foreground: oklch(0.962 0.044 156.743);
+  --sidebar-primary: oklch(0.723 0.219 149.579);
+  --sidebar-primary-foreground: oklch(0.982 0.018 155.826);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
 }
@@ -123,11 +123,48 @@
   }
   body {
     @apply bg-background text-foreground;
+    overflow-x: hidden;
   }
   html {
     @apply font-sans;
+    overflow-x: hidden;
+  }
+  .dark {
+    color-scheme: dark;
   }
   body {
     font-feature-settings: "tnum";
+  }
+}
+
+@layer base {
+  /* iOS/WebKit renders date & time inputs as native controls with an intrinsic
+     content width and ignores width:100%, so they overflow their container and
+     can push the whole layout past the viewport. Neutralize the native sizing
+     and reset the internal value element so they honor their box. */
+  input[type="date"],
+  input[type="datetime-local"],
+  input[type="month"],
+  input[type="time"],
+  input[type="week"] {
+    -webkit-appearance: none;
+    appearance: none;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  input[type="date"]::-webkit-date-and-time-value,
+  input[type="datetime-local"]::-webkit-date-and-time-value,
+  input[type="month"]::-webkit-date-and-time-value,
+  input[type="time"]::-webkit-date-and-time-value,
+  input[type="week"]::-webkit-date-and-time-value {
+    text-align: start;
+    margin: 0;
+    min-width: 0;
+  }
+
+  input::-webkit-datetime-edit,
+  input::-webkit-datetime-edit-fields-wrapper {
+    padding: 0;
   }
 }

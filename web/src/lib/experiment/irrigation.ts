@@ -233,11 +233,7 @@ export function manilaLocalInputToIso(value: string) {
 }
 
 export function defaultWateredAtLocalValue(now = new Date()) {
-  const parts = Object.fromEntries(
-    dayFormatter.formatToParts(now).map((part) => [part.type, part.value])
-  )
-
-  return `${parts.year}-${parts.month}-${parts.day}T12:00`
+  return toManilaDatetimeLocalValue(now)
 }
 
 export function activeIrrigationEvents(events: IrrigationEvent[]) {

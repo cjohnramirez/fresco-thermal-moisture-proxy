@@ -12,7 +12,7 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart"
-import { chartConfig } from "@/components/dashboard/dashboard-config"
+import { chartConfig } from "@/features/dashboard/lib/dashboard-config"
 import type { chartSeries } from "@/lib/experiment/analytics"
 
 export function TemperatureChart({
@@ -23,7 +23,7 @@ export function TemperatureChart({
   markers?: Array<{ time: string; label: string; wateredAt: string }>
 }) {
   return (
-    <ChartContainer config={chartConfig} className="h-[280px] w-full aspect-auto">
+    <ChartContainer config={chartConfig} className="h-70 w-full aspect-auto">
       <AreaChart data={data} accessibilityLayer>
         <CartesianGrid vertical={false} />
         <XAxis dataKey="time" tickLine={false} axisLine={false} minTickGap={24} />

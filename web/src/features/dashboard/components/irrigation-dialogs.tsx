@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { ClockIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -18,6 +19,7 @@ import {
   FieldLabel,
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { Spinner } from "@/components/ui/spinner"
 import { Textarea } from "@/components/ui/textarea"
 import {
   defaultWateredAtLocalValue,
@@ -52,14 +54,11 @@ export function LogWateringDialog({
   open: boolean
 }) {
   const [submitting, setSubmitting] = React.useState(false)
-  const defaultWateredAt = React.useMemo(
-    () => (open ? defaultWateredAtLocalValue() : ""),
-    [open],
-  )
+  const [wateredAt, setWateredAt] = React.useState(defaultWateredAtLocalValue)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Log Watering</DialogTitle>
           <DialogDescription>
@@ -76,7 +75,7 @@ export function LogWateringDialog({
             setSubmitting(true)
             try {
               await onSubmit({
-                wateredAt: requiredIso(formData, "wateredAt"),
+                wateredAt: manilaLocalInputToIso(wateredAt),
                 waterL: optionalNumber(formData, "waterL") ?? 2,
                 waterTempC: optionalNumber(formData, "waterTempC"),
                 preMassKg: optionalNumber(formData, "preMassKg"),
@@ -93,17 +92,29 @@ export function LogWateringDialog({
           <FieldGroup>
             <Field>
               <FieldLabel htmlFor="watering-watered-at">Watered At</FieldLabel>
-              <Input
-                id="watering-watered-at"
-                name="wateredAt"
-                type="datetime-local"
-                defaultValue={defaultWateredAt}
-                autoComplete="off"
-                required
-              />
+              <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+                <Input
+                  id="watering-watered-at"
+                  name="wateredAt"
+                  type="datetime-local"
+                  value={wateredAt}
+                  onChange={(event) => setWateredAt(event.target.value)}
+                  autoComplete="off"
+                  required
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setWateredAt(defaultWateredAtLocalValue())}
+                  disabled={submitting}
+                >
+                  <ClockIcon data-icon="inline-start" />
+                  Use Current Time
+                </Button>
+              </div>
               <FieldDescription>Displayed and entered in Manila time.</FieldDescription>
             </Field>
-            <div className="grid gap-3 md:grid-cols-2">
+            <FieldGroup className="grid gap-3 md:grid-cols-2">
               <Field>
                 <FieldLabel htmlFor="watering-water-l">Water (L)</FieldLabel>
                 <Input
@@ -133,8 +144,8 @@ export function LogWateringDialog({
                   autoComplete="off"
                 />
               </Field>
-            </div>
-            <div className="grid gap-3 md:grid-cols-2">
+            </FieldGroup>
+            <FieldGroup className="grid gap-3 md:grid-cols-2">
               <Field>
                 <FieldLabel htmlFor="watering-pre-mass">
                   Pre-Water Mass (kg)
@@ -165,7 +176,7 @@ export function LogWateringDialog({
                   autoComplete="off"
                 />
               </Field>
-            </div>
+            </FieldGroup>
             <Field>
               <FieldLabel htmlFor="watering-note">Note</FieldLabel>
               <Textarea
@@ -182,6 +193,7 @@ export function LogWateringDialog({
               Cancel
             </Button>
             <Button type="submit" disabled={submitting}>
+              {submitting && <Spinner data-icon="inline-start" />}
               {submitting ? "Saving..." : "Save Watering"}
             </Button>
           </DialogFooter>
@@ -210,7 +222,7 @@ export function LogWeightDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Log +1 h Weight</DialogTitle>
           <DialogDescription>
@@ -276,6 +288,7 @@ export function LogWeightDialog({
               Cancel
             </Button>
             <Button type="submit" disabled={submitting || !event}>
+              {submitting && <Spinner data-icon="inline-start" />}
               {submitting ? "Saving..." : "Save Weight"}
             </Button>
           </DialogFooter>

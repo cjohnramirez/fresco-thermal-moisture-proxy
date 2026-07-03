@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
 import {
+  downloadCsv,
   irrigationEventsToCsv,
   readingsToCsv,
   weekAnalysisToCsv,
@@ -12,6 +13,11 @@ import type {
 } from "./types"
 
 describe("csv export", () => {
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.unstubAllGlobals()
+  })
+
   it("exports one row per normalized reading", () => {
     const csv = readingsToCsv([
       {
@@ -107,5 +113,43 @@ describe("csv export", () => {
     expect(csv).toContain("baseline_slope")
     expect(csv).toContain("daily_water_use")
     expect(csv).toContain("root_temp_swing")
+  })
+
+  it("downloads csv through an attached anchor and delayed URL cleanup", () => {
+    vi.useFakeTimers()
+
+    const click = vi.fn()
+    const remove = vi.fn()
+    const appendChild = vi.fn()
+    const revokeObjectURL = vi.fn()
+    const anchor = {
+      click,
+      download: "",
+      href: "",
+      remove,
+      style: { display: "" },
+    }
+
+    vi.stubGlobal("document", {
+      body: { appendChild },
+      createElement: vi.fn(() => anchor),
+    })
+    vi.stubGlobal("URL", {
+      createObjectURL: vi.fn(() => "blob:csv"),
+      revokeObjectURL,
+    })
+
+    downloadCsv("readings.csv", "a,b\n1,2")
+
+    expect(anchor.href).toBe("blob:csv")
+    expect(anchor.download).toBe("readings.csv")
+    expect(anchor.style.display).toBe("none")
+    expect(appendChild).toHaveBeenCalledWith(anchor)
+    expect(click).toHaveBeenCalledOnce()
+    expect(remove).toHaveBeenCalledOnce()
+    expect(revokeObjectURL).not.toHaveBeenCalled()
+
+    vi.runOnlyPendingTimers()
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:csv")
   })
 })

@@ -6,12 +6,16 @@ import {
   ThermometerIcon,
 } from "lucide-react"
 
-import { ChartCardHeader } from "@/components/dashboard/chart-card-header"
-import { MetricCard } from "@/components/dashboard/metric-card"
-import { ProbeCard } from "@/components/dashboard/probe-card"
-import { TemperatureChart } from "@/components/dashboard/temperature-chart"
-import { WateringStatusCard } from "@/components/dashboard/watering-status-card"
-import type { CloudState } from "@/components/dashboard/dashboard-types"
+import { ChartCardHeader } from "@/features/dashboard/components/chart-card-header"
+import { ChartSkeleton } from "@/features/dashboard/components/loading-states"
+import { MetricCard } from "@/features/dashboard/components/metric-card"
+import { ProbeCard } from "@/features/dashboard/components/probe-card"
+import { TemperatureChart } from "@/features/dashboard/components/temperature-chart"
+import { WateringStatusCard } from "@/features/dashboard/components/watering-status-card"
+import type {
+  CloudState,
+  DashboardLoadingState,
+} from "@/features/dashboard/lib/dashboard-types"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Card, CardContent } from "@/components/ui/card"
 import { sensorHealth } from "@/lib/experiment/analytics"
@@ -32,6 +36,7 @@ export function DashboardView({
   health,
   chartRange,
   latest,
+  loadingState,
   onChartRangeChange,
   onLogWatering,
   onLogWeight,
@@ -44,6 +49,7 @@ export function DashboardView({
   health: ReturnType<typeof sensorHealth>
   chartRange: ChartRange
   latest: Map<string, NormalizedReading>
+  loadingState: DashboardLoadingState
   onChartRangeChange: (value: ChartRange) => void
   onLogWatering: () => void
   onLogWeight: () => void
@@ -69,12 +75,14 @@ export function DashboardView({
           value={`${health.ok}/${health.total}`}
           detail={`${health.percent}% channels online`}
           icon={ThermometerIcon}
+          loading={loadingState.readingsLoading}
         />
         <MetricCard
           label="Cloud Rows"
           value={String(cloudState.rowCount)}
           detail={cloudState.message}
           icon={CloudIcon}
+          loading={loadingState.readingsLoading}
         />
         <MetricCard
           label="Weigh Completion"
@@ -87,12 +95,14 @@ export function DashboardView({
                 : `${completion.percent}% completed`
           }
           icon={CheckCircle2Icon}
+          loading={loadingState.summaryLoading}
         />
         <MetricCard
           label="Thermal Spread"
           value={spread === null ? "--" : `${spread.toFixed(2)} C`}
           detail="Latest configured-channel delta"
           icon={GaugeIcon}
+          loading={loadingState.readingsLoading}
         />
       </div>
 
@@ -111,6 +121,7 @@ export function DashboardView({
           <ProbeCard
             key={channel.id}
             channel={channel}
+            loading={loadingState.readingsLoading}
             reading={latest.get(channel.id)}
           />
         ))}
@@ -121,13 +132,18 @@ export function DashboardView({
           title="Temperature Trace"
           description="Bucketed Supabase readings with watering markers."
           chartRange={chartRange}
+          loading={loadingState.summaryRefreshing}
           onChartRangeChange={onChartRangeChange}
         />
         <CardContent>
-          <TemperatureChart
-            data={tempData}
-            markers={summary?.irrigationMarkers ?? []}
-          />
+          {loadingState.summaryLoading || loadingState.readingsLoading ? (
+            <ChartSkeleton />
+          ) : (
+            <TemperatureChart
+              data={tempData}
+              markers={summary?.irrigationMarkers ?? []}
+            />
+          )}
         </CardContent>
       </Card>
     </div>
