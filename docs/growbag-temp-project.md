@@ -14,13 +14,13 @@ The week-1 dashboard focuses on practical evidence:
 
 - Did watering create a visible thermal response?
 - How quickly did the root-zone temperature recover after watering?
-- Did the bag return to a stable post-drain weight after the +1 h weigh?
+- Did the bag return to a stable checkpoint weight before the 6 PM cutoff?
 - Is the baseline full weight drifting up, down, or staying flat?
 - How much water was used between daily watering events?
 
 ## Temperature Setup
 
-The grow-bag temperature firmware tracks four OneWire channels:
+The grow-bag temperature firmware tracks five OneWire channels:
 
 | Channel id | Purpose |
 | --- | --- |
@@ -28,8 +28,9 @@ The grow-bag temperature firmware tracks four OneWire channels:
 | `surface` | Near the top of the grow medium |
 | `roots` | Root-zone depth |
 | `bottom` | Lower bag or drainage-zone depth |
+| `water` | Irrigation-water temperature (GPIO 14) |
 
-The dashboard uses these readings to show thermal spread, daily swing, and watering recovery windows.
+The dashboard uses the four grow-bag readings to show thermal spread, daily swing, and watering recovery windows. The `water` channel is separate supporting evidence: it is not a grow-medium probe, so it stays out of those aggregates and is only read once per watering to record the irrigation-water temperature for that event. See [water-temp-sensor.md](water-temp-sensor.md).
 
 ## Why Temperature Might Help
 
@@ -40,7 +41,7 @@ Useful signals may include:
 - Smaller daily temperature swings after watering.
 - Larger surface-to-root or root-to-bottom gradients during dry periods.
 - A measurable recovery curve after irrigation.
-- Repeated patterns between water input, drained weight, and later bag mass loss.
+- Repeated patterns between water input, checkpoint weights, and later bag mass loss.
 
 ## Limits
 
@@ -54,23 +55,21 @@ Objective: estimate daily water use for one bell pepper grow bag.
 
 Default loop:
 
-- Once per day at around 12:00 noon, water the bag with 2 liters.
+- Once per day before 6 PM Manila time, water the bag with 2 liters.
 - Log the watering time and volume.
-- Record pre-watering bag mass when available.
-- Record post-watering mass when available.
-- Wait about 1 hour for drainage.
-- Log the drained/full mass on the same watering event.
+- Weigh the bag every 10 minutes after watering until 6 PM.
+- Log each checkpoint mass on the same watering event.
 - Keep temperature telemetry running continuously.
 
 ## Metrics
 
 The dashboard computes:
 
-- Watering state: idle, counting, due, or overdue.
-- Weigh completion: completed +1 h weighs over active watering events.
-- First-hour drainage: `post_mass_kg - drained_mass_kg`.
-- Daily water use: `drained_mass_kg(n) - pre_mass_kg(n + 1)`.
-- Baseline drift: slope of drained/full mass over time.
+- Watering state: idle, counting, or due.
+- Weigh completion: completed schedules plus skipped 10-minute checkpoints.
+- Checkpoint weight change: first logged checkpoint mass minus latest logged checkpoint mass.
+- Daily water use: first logged checkpoint mass minus latest logged checkpoint mass for each usable watering window.
+- Baseline drift: slope of latest logged checkpoint mass over time.
 - Temperature recovery windows after watering.
 - Root-zone daily swing.
 - Thermal spread across channels.
@@ -88,8 +87,8 @@ The dashboard computes:
 ## Frontend Mapping
 
 - `Dashboard` shows watering state, weigh completion, cloud rows, thermal spread, and latest probes.
-- `Monitor` logs watering and +1 h weight rows to Supabase.
-- `Analytics` shows baseline drift, average daily water use, first-hour drainage, temperature swing, and recovery windows.
+- `Monitor` logs watering rows and 10-minute checkpoint weights to Supabase.
+- `Analytics` shows baseline drift, checkpoint loss, watering-window change, temperature swing, and recovery windows.
 - `Parse Full Week` performs explicit full-resolution analysis for up to 7 days without rendering every raw point.
 
 ## Scope Notes

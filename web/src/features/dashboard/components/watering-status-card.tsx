@@ -32,27 +32,20 @@ export function WateringStatusCard({
     status.state === "idle"
       ? "No Open Watering"
       : status.state === "counting"
-        ? "Weigh Timer Running"
-        : status.state === "due"
-          ? "Weigh The Bag Now"
-          : "Weigh Window Overdue"
+        ? "Next Weigh Checkpoint"
+        : "Weigh The Bag Now"
   const detail =
     status.state === "idle"
-      ? "Log the next watering to start the +1 h clock."
+      ? "Log the next watering before 6 PM Manila time."
       : status.state === "counting"
-        ? `${minutesLabel(status.remainingMs)} remaining until +1 h weigh.`
-        : status.state === "due"
-          ? "The +1 h mark has arrived."
-          : `${minutesLabel(status.overdueMs)} past the +1 h mark.`
+        ? `${minutesLabel(status.remainingMs)} until the next checkpoint.`
+        : `${status.totalSlots - status.weighedCount} checkpoint weights still need attention.`
   const progress =
     status.state === "idle"
       ? 0
-      : Math.min(
-          100,
-          Math.round(
-            ((60 * 60_000 - status.remainingMs) / (60 * 60_000)) * 100
-          )
-        )
+      : status.totalSlots
+        ? Math.round((status.weighedCount / status.totalSlots) * 100)
+        : 0
 
   return (
     <Card>
@@ -77,7 +70,13 @@ export function WateringStatusCard({
           <div className="flex flex-col gap-2">
             <Progress value={progress} />
             <div className="text-xs text-muted-foreground">
-              Due {formatManilaDateTime(status.dueAt)}
+              {status.dueSlotAt
+                ? `Due ${formatManilaDateTime(status.dueSlotAt)}`
+                : status.nextSlotAt
+                  ? `Next ${formatManilaDateTime(status.nextSlotAt)}`
+                  : `Cutoff ${formatManilaDateTime(status.cutoffAt)}`}
+              {"; "}
+              {status.weighedCount}/{status.totalSlots} weighed
             </div>
           </div>
         )}

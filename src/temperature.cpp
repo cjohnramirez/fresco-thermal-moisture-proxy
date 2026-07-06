@@ -30,6 +30,9 @@ TemperatureBus buses[] = {
     {"surface", 4},
     {"roots", 16},
     {"bottom", 17},
+    // Irrigation-water probe. Sampled continuously like the grow-bag probes, but
+    // the dashboard only reads it once per watering to stamp water_temp_c.
+    {"water", 14},
 };
 
 constexpr size_t TEMPERATURE_BUS_COUNT = sizeof(buses) / sizeof(buses[0]);

@@ -88,10 +88,10 @@ export function DashboardView({
           label="Weigh Completion"
           value={`${completion.completed}/${completion.total}`}
           detail={
-            completion.overdue
-              ? `${completion.overdue} overdue weigh`
+            completion.skipped
+              ? `${completion.skipped} schedule with skipped slots`
               : completion.due
-                ? `${completion.due} weigh due`
+                ? `${completion.due} checkpoint due`
                 : `${completion.percent}% completed`
           }
           icon={CheckCircle2Icon}
@@ -111,8 +111,8 @@ export function DashboardView({
         <AlertTitle>Current Watering Read</AlertTitle>
         <AlertDescription>
           {summary?.baseline.verdict
-            ? `${baselineVerdictLabel(summary.baseline.verdict)} from drained-mass baseline.`
-            : "Log drained weights to read the baseline trend."}
+            ? `${baselineVerdictLabel(summary.baseline.verdict)} from final checkpoint mass.`
+            : "Log checkpoint weights to read the baseline trend."}
         </AlertDescription>
       </Alert>
 

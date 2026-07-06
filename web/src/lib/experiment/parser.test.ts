@@ -34,6 +34,30 @@ describe("parseFirmwareLine", () => {
     })
   })
 
+  it("normalizes a water channel on pin 14", () => {
+    const result = parseFirmwareLine(
+      JSON.stringify({
+        type: "temperature",
+        seq: 9,
+        ms: 9000,
+        sensors: 5,
+        ts: "ok",
+        channels: [
+          { id: "water", pin: 14, devices: 1, ts: "ok", tc: 24.8, tf: 76.6 },
+        ],
+      }),
+      sessionId,
+      "2026-07-02T00:00:00.000Z"
+    )
+
+    expect(result?.readings[0]).toMatchObject({
+      channelId: "water",
+      pin: 14,
+      celsius: 24.8,
+      status: "ok",
+    })
+  })
+
   it("keeps no_sensor channel state visible", () => {
     const result = parseFirmwareLine(
       JSON.stringify({

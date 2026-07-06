@@ -112,14 +112,14 @@ export function AnalyticsView({
         <MetricCard
           label="Baseline Drift"
           value={slope(baseline?.slopeKgPerDay ?? null)}
-          detail={baseline ? baselineVerdictLabel(baseline.verdict) : "Need drained weights"}
+          detail={baseline ? baselineVerdictLabel(baseline.verdict) : "Need checkpoint weights"}
           icon={ScaleIcon}
           loading={loadingState.summaryLoading}
         />
         <MetricCard
-          label="Average Daily Water Use"
+          label="Average Checkpoint Loss"
           value={kg(averageDailyUse)}
-          detail={`${summary?.dailyWaterUse.length ?? 0} usable day gaps`}
+          detail={`${summary?.dailyWaterUse.length ?? 0} usable watering windows`}
           icon={DropletsIcon}
           loading={loadingState.summaryLoading}
         />
@@ -227,32 +227,32 @@ export function AnalyticsView({
         <Card>
           <ChartCardHeader
             title="Baseline Drift"
-            description="Pre-water and +1 h drained mass per day."
+            description="Initial and final checkpoint mass per watering day."
             chartRange={chartRange}
             loading={loadingState.summaryRefreshing}
             onChartRangeChange={onChartRangeChange}
           />
           <CardContent>
             {chartsLoading ? (
-              <ChartSkeleton className="h-[17.5rem]" />
+              <ChartSkeleton className="h-70" />
             ) : (
-              <ChartContainer config={chartConfig} className="h-[17.5rem] w-full aspect-auto">
+              <ChartContainer config={chartConfig} className="h-70 w-full aspect-auto">
                 <LineChart data={summary?.baseline.points ?? []} accessibilityLayer>
                   <CartesianGrid vertical={false} />
                   <XAxis dataKey="day" tickLine={false} axisLine={false} />
                   <YAxis tickLine={false} axisLine={false} width={36} />
                   <ChartTooltip content={<ChartTooltipContent />} />
                   <Line
-                    dataKey="drainedMassKg"
+                    dataKey="finalMassKg"
                     type="monotone"
-                    stroke="var(--color-drainedMassKg)"
+                    stroke="var(--color-finalMassKg)"
                     strokeWidth={2}
                     dot={false}
                   />
                   <Line
-                    dataKey="preMassKg"
+                    dataKey="initialMassKg"
                     type="monotone"
-                    stroke="var(--color-preMassKg)"
+                    stroke="var(--color-initialMassKg)"
                     strokeWidth={2}
                     dot={false}
                   />
@@ -264,17 +264,17 @@ export function AnalyticsView({
 
         <Card>
           <ChartCardHeader
-            title="Daily Water Use"
-            description="Drained baseline minus next pre-water low point."
+            title="Checkpoint Weight Loss"
+            description="First logged weight minus latest logged weight."
             chartRange={chartRange}
             loading={loadingState.summaryRefreshing}
             onChartRangeChange={onChartRangeChange}
           />
           <CardContent>
             {chartsLoading ? (
-              <ChartSkeleton className="h-[16.25rem]" />
+              <ChartSkeleton className="h-65" />
             ) : (
-              <ChartContainer config={chartConfig} className="h-[16.25rem] w-full aspect-auto">
+              <ChartContainer config={chartConfig} className="h-65 w-full aspect-auto">
                 <BarChart data={summary?.dailyWaterUse ?? []} accessibilityLayer>
                   <CartesianGrid vertical={false} />
                   <XAxis dataKey="day" tickLine={false} axisLine={false} />
@@ -289,18 +289,18 @@ export function AnalyticsView({
 
         <Card>
           <ChartCardHeader
-            title="First-Hour Drainage"
-            description="Post-water mass minus +1 h drained mass."
+            title="Watering Window Change"
+            description="Mass change across logged 10-minute checkpoints."
             chartRange={chartRange}
             loading={loadingState.summaryRefreshing}
             onChartRangeChange={onChartRangeChange}
           />
           <CardContent>
             {chartsLoading ? (
-              <ChartSkeleton className="h-[16.25rem]" />
+              <ChartSkeleton className="h-65" />
             ) : (
-              <ChartContainer config={chartConfig} className="h-[16.25rem] w-full aspect-auto">
-                <BarChart data={summary?.firstHourDrainage ?? []} accessibilityLayer>
+              <ChartContainer config={chartConfig} className="h-65 w-full aspect-auto">
+                <BarChart data={summary?.checkpointDrainage ?? []} accessibilityLayer>
                   <CartesianGrid vertical={false} />
                   <XAxis dataKey="day" tickLine={false} axisLine={false} />
                   <YAxis tickLine={false} axisLine={false} width={36} />
@@ -323,9 +323,9 @@ export function AnalyticsView({
           />
           <CardContent>
             {chartsLoading ? (
-              <ChartSkeleton className="h-[16.25rem]" />
+              <ChartSkeleton className="h-65" />
             ) : (
-              <ChartContainer config={chartConfig} className="h-[16.25rem] w-full aspect-auto">
+              <ChartContainer config={chartConfig} className="h-65 w-full aspect-auto">
                 <BarChart data={summary?.swingData ?? []} accessibilityLayer>
                   <CartesianGrid vertical={false} />
                   <XAxis dataKey="day" tickLine={false} axisLine={false} />
@@ -348,9 +348,9 @@ export function AnalyticsView({
           />
           <CardContent>
             {chartsLoading ? (
-              <ChartSkeleton className="h-[16.25rem]" />
+              <ChartSkeleton className="h-65" />
             ) : (
-              <ChartContainer config={chartConfig} className="h-[16.25rem] w-full aspect-auto">
+              <ChartContainer config={chartConfig} className="h-65 w-full aspect-auto">
                 <BarChart data={summary?.wateringRecovery ?? []} accessibilityLayer>
                   <CartesianGrid vertical={false} />
                   <XAxis dataKey="event" tickLine={false} axisLine={false} />

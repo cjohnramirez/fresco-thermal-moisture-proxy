@@ -24,22 +24,25 @@ The temperature dashboard reads from Supabase and does not write firmware data.
 ### Dashboard
 
 - Latest `control`, `surface`, `roots`, and `bottom` probe values.
-- Watering status from `irrigation_events`: idle, counting, due, or overdue.
-- Weigh completion and active watering state.
+- Watering status from `irrigation_events`: idle, counting, or due.
+- Weigh completion, skipped checkpoint counts, and active watering state.
 - Sensor health, cloud row count, thermal spread, and chart overlays.
 - Shared chart range tabs: 1 hour, 1 day, and 1 week.
 
 ### Monitor
 
 - Server-paginated cloud readings with `page`, `pageSize`, `channel`, and `status`.
-- Log watering dialog with current-time defaults and a `Use Current Time` action.
-- +1 h weigh dialog that updates the same watering row.
-- Events table with edit, archive visibility, and soft delete.
+- Log watering dialog with current-time defaults and a `Use Current Time` action. The Water Temp field is pre-filled once from the latest `water` channel reading (GPIO 14) and stays editable; see [water-temp-sensor.md](water-temp-sensor.md).
+- 10-minute checkpoint weigh dialog that updates the same watering row.
+- Feed and watering controls share one desktop row; readings and irrigation tables each keep their own row.
+- Irrigation events table stays horizontally contained on narrow viewports.
+- Opening a row or its weight-log button shows a detail dialog with summary tiles, checkpoint table, and weight trend chart.
+- Events table supports edit, archive visibility, and soft delete.
 
 ### Analytics
 
 - Bucketed charts from `/api/experiment-summary`.
-- Baseline drift, average daily water use, first-hour drainage, temperature swing, and watering recovery windows.
+- Baseline drift, checkpoint weight loss, watering-window change, temperature swing, and watering recovery windows.
 - Explicit Parse Full Week action for up to 7 days of full-resolution server-side analysis.
 - Full parse returns summaries and exports instead of rendering every raw point.
 

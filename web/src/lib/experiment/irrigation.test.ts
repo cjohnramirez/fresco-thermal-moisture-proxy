@@ -2,14 +2,16 @@ import { describe, expect, it } from "vitest"
 
 import {
   computeBaselineDrift,
+  computeCheckpointDrainage,
   computeDailyWaterUse,
-  computeFirstHourDrainage,
   computeWateringStatus,
   computeWeighCompletion,
   createIrrigationEventSchema,
-  lateWeighLabel,
+  expectedWeightSlots,
+  mergeWeightLog,
   toSupabaseIrrigationPayload,
   updateIrrigationEventSchema,
+  weightSlotsForEvent,
 } from "./irrigation"
 import type { IrrigationEvent } from "./types"
 
@@ -17,24 +19,35 @@ const baseEvent = {
   id: "event",
   bagId: "bag-1",
   wateredAt: "2026-07-02T00:00:00.000Z",
+  cutoffAt: "2026-07-02T10:00:00.000Z",
   waterL: 2,
   waterTempC: null,
-  preMassKg: 7.8,
-  postMassKg: 9.8,
-  drainedMassKg: 8.8,
-  drainedAt: "2026-07-02T01:00:00.000Z",
+  weightLogs: [
+    {
+      slotAt: "2026-07-02T00:10:00.000Z",
+      weighedAt: "2026-07-02T00:10:00.000Z",
+      massKg: 9.8,
+      note: "",
+    },
+    {
+      slotAt: "2026-07-02T10:00:00.000Z",
+      weighedAt: "2026-07-02T10:01:00.000Z",
+      massKg: 8.8,
+      note: "final",
+    },
+  ],
   note: "",
   createdAt: "2026-07-02T00:00:00.000Z",
   archivedAt: null,
 } satisfies IrrigationEvent
 
 describe("irrigation workflow helpers", () => {
-  it("validates watering writes and weigh updates", () => {
+  it("validates watering writes and checkpoint weight updates", () => {
     expect(
       createIrrigationEventSchema.safeParse({
         wateredAt: "2026-07-02T00:00:00.000Z",
         waterL: 2,
-        preMassKg: 7.8,
+        weightLogs: [],
       }).success
     ).toBe(true)
     expect(
@@ -45,80 +58,145 @@ describe("irrigation workflow helpers", () => {
     ).toBe(false)
     expect(
       updateIrrigationEventSchema.safeParse({
-        drainedMassKg: 30,
-        drainedAt: "2026-07-02T01:00:00.000Z",
+        weightLog: {
+          slotAt: "2026-07-02T00:10:00.000Z",
+          weighedAt: "2026-07-02T00:10:00.000Z",
+          massKg: 30,
+          note: "",
+        },
       }).success
     ).toBe(false)
   })
 
-  it("weigh-only update never clobbers other columns", () => {
+  it("serializes only touched Supabase columns", () => {
     const parsed = updateIrrigationEventSchema.parse({
-      drainedMassKg: 8.8,
-      drainedAt: "2026-07-02T01:00:00.000Z",
+      weightLogs: [baseEvent.weightLogs[0]],
     })
     const payload = toSupabaseIrrigationPayload(parsed)
 
-    expect(Object.keys(payload).sort()).toEqual([
-      "drained_at",
-      "drained_mass_kg",
-    ])
+    expect(Object.keys(payload)).toEqual(["weight_logs"])
     expect("water_l" in payload).toBe(false)
-    expect("pre_mass_kg" in payload).toBe(false)
     expect("note" in payload).toBe(false)
   })
 
   it("explicit null in an update still clears that column", () => {
-    const parsed = updateIrrigationEventSchema.parse({ preMassKg: null })
+    const parsed = updateIrrigationEventSchema.parse({ waterTempC: null })
 
-    expect(toSupabaseIrrigationPayload(parsed)).toEqual({ pre_mass_kg: null })
+    expect(toSupabaseIrrigationPayload(parsed)).toEqual({ water_temp_c: null })
   })
 
-  it("derives counting, due, overdue, and idle states from open rows", () => {
-    const open = { ...baseEvent, drainedMassKg: null, drainedAt: null }
+  it("generates 10-minute slots after watering until the 6 PM cutoff", () => {
+    const slots = expectedWeightSlots(baseEvent)
+
+    expect(slots[0]).toBe("2026-07-02T00:10:00.000Z")
+    expect(slots.at(-1)).toBe("2026-07-02T10:00:00.000Z")
+    expect(slots).toHaveLength(60)
+  })
+
+  it("merges one weight log per schedule slot", () => {
+    const merged = mergeWeightLog(
+      { ...baseEvent, weightLogs: [] },
+      baseEvent.weightLogs[0]
+    )
+
+    expect(merged).toEqual([baseEvent.weightLogs[0]])
+    expect(() =>
+      mergeWeightLog(baseEvent, {
+        slotAt: "2026-07-02T00:05:00.000Z",
+        weighedAt: "2026-07-02T00:05:00.000Z",
+        massKg: 9,
+        note: "",
+      })
+    ).toThrow("Selected slot")
+  })
+
+  it("derives counting, due, and idle states from an open row", () => {
+    const open = { ...baseEvent, weightLogs: [] }
 
     expect(
-      computeWateringStatus([open], new Date("2026-07-02T00:30:00.000Z"))
+      computeWateringStatus([open], new Date("2026-07-02T00:05:00.000Z"))
     ).toMatchObject({ state: "counting" })
     expect(
-      computeWateringStatus([open], new Date("2026-07-02T01:30:00.000Z"))
-    ).toMatchObject({ state: "due" })
+      computeWateringStatus([open], new Date("2026-07-02T00:15:00.000Z"))
+    ).toMatchObject({ state: "due", dueSlotAt: "2026-07-02T00:10:00.000Z" })
     expect(
-      computeWateringStatus([open], new Date("2026-07-02T02:00:00.000Z"))
-    ).toMatchObject({ state: "overdue" })
-    expect(computeWateringStatus([baseEvent])).toMatchObject({ state: "idle" })
+      computeWateringStatus([open], new Date("2026-07-02T10:01:00.000Z"))
+    ).toMatchObject({ state: "idle" })
   })
 
-  it("counts completed, due, and overdue weigh rows", () => {
-    const due = {
+  it("labels logged, due, upcoming, and skipped slots", () => {
+    const slots = weightSlotsForEvent(
+      baseEvent,
+      new Date("2026-07-02T00:25:00.000Z")
+    )
+
+    expect(slots[0]).toMatchObject({ status: "logged" })
+    expect(slots[1]).toMatchObject({ status: "due" })
+    expect(slots[2]).toMatchObject({ status: "upcoming" })
+
+    const skipped = weightSlotsForEvent(
+      { ...baseEvent, weightLogs: [] },
+      new Date("2026-07-02T10:01:00.000Z")
+    )
+    expect(skipped[0]).toMatchObject({ status: "skipped" })
+  })
+
+  it("counts completed, due, and skipped weigh schedules", () => {
+    const completed = {
       ...baseEvent,
-      id: "due",
-      wateredAt: "2026-07-02T00:00:00.000Z",
-      drainedMassKg: null,
-      drainedAt: null,
+      id: "completed",
+      wateredAt: "2026-07-02T09:40:00.000Z",
+      cutoffAt: "2026-07-02T10:00:00.000Z",
+      weightLogs: [
+        {
+          slotAt: "2026-07-02T09:50:00.000Z",
+          weighedAt: "2026-07-02T09:50:00.000Z",
+          massKg: 9,
+          note: "",
+        },
+        {
+          slotAt: "2026-07-02T10:00:00.000Z",
+          weighedAt: "2026-07-02T10:00:00.000Z",
+          massKg: 8.9,
+          note: "",
+        },
+      ],
     }
-    const overdue = {
-      ...due,
-      id: "overdue",
-      wateredAt: "2026-07-01T23:00:00.000Z",
+    const due = { ...baseEvent, id: "due", weightLogs: [] }
+    const skipped = {
+      ...completed,
+      id: "skipped",
+      weightLogs: [],
     }
 
     expect(
       computeWeighCompletion(
-        [baseEvent, due, overdue],
-        new Date("2026-07-02T01:30:00.000Z")
+        [completed, due, skipped],
+        new Date("2026-07-02T10:05:00.000Z")
       )
-    ).toMatchObject({ completed: 1, total: 3, due: 2, overdue: 1 })
+    ).toMatchObject({ completed: 3, total: 3, due: 0, skipped: 2 })
   })
 
-  it("computes baseline drift, daily water use, and drainage", () => {
+  it("computes baseline drift, daily water use, and checkpoint change", () => {
     const nextEvent = {
       ...baseEvent,
       id: "event-2",
       wateredAt: "2026-07-03T00:00:00.000Z",
-      preMassKg: 7.6,
-      postMassKg: 9.5,
-      drainedMassKg: 8.4,
-      drainedAt: "2026-07-03T01:00:00.000Z",
+      cutoffAt: "2026-07-03T10:00:00.000Z",
+      weightLogs: [
+        {
+          slotAt: "2026-07-03T00:10:00.000Z",
+          weighedAt: "2026-07-03T00:10:00.000Z",
+          massKg: 9.5,
+          note: "",
+        },
+        {
+          slotAt: "2026-07-03T10:00:00.000Z",
+          weighedAt: "2026-07-03T10:00:00.000Z",
+          massKg: 8.4,
+          note: "",
+        },
+      ],
     }
 
     expect(computeBaselineDrift([baseEvent, nextEvent])).toMatchObject({
@@ -126,26 +204,10 @@ describe("irrigation workflow helpers", () => {
       verdict: "needs_more",
     })
     expect(computeDailyWaterUse([baseEvent, nextEvent])[0]).toMatchObject({
-      waterUseKg: 1.2,
+      waterUseKg: 1,
     })
-    expect(computeFirstHourDrainage([baseEvent])[0]).toMatchObject({
+    expect(computeCheckpointDrainage([baseEvent])[0]).toMatchObject({
       drainageKg: 1,
     })
-  })
-
-  it("flags late and early weigh entries", () => {
-    expect(
-      lateWeighLabel({
-        ...baseEvent,
-        drainedAt: "2026-07-02T00:30:00.000Z",
-      })
-    ).toBe("early")
-    expect(
-      lateWeighLabel({
-        ...baseEvent,
-        drainedAt: "2026-07-02T01:45:00.000Z",
-      })
-    ).toBe("late")
-    expect(lateWeighLabel(baseEvent)).toBe(null)
   })
 })

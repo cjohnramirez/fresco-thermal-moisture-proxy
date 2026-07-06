@@ -6,16 +6,17 @@ import { computeWateringStatus } from "@/lib/experiment/irrigation"
 import type { IrrigationEvent } from "@/lib/experiment/types"
 
 export function useWateringStatus(irrigationEvents: IrrigationEvent[]) {
+  const [now, setNow] = React.useState(() => Date.now())
   const hasOpenWeighTimer = React.useMemo(
     () =>
       irrigationEvents.some(
-        (event) => event.archivedAt === null && event.drainedMassKg === null
+        (event) =>
+          event.archivedAt === null && Date.parse(event.cutoffAt) > now
       ),
-    [irrigationEvents]
+    [irrigationEvents, now]
   )
-  const [now, setNow] = React.useState(() => Date.now())
 
-  // Tick only while a +1 h weigh window is open.
+  // Tick only while a same-day weigh schedule is still open.
   React.useEffect(() => {
     if (!hasOpenWeighTimer) {
       return

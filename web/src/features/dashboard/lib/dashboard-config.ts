@@ -25,13 +25,17 @@ export const chartConfig = {
     label: "Root - bottom",
     color: "var(--chart-1)",
   },
-  drainedMassKg: {
-    label: "Drained mass",
+  finalMassKg: {
+    label: "Final mass",
     color: "var(--chart-2)",
   },
-  preMassKg: {
-    label: "Pre-water mass",
+  initialMassKg: {
+    label: "Initial mass",
     color: "var(--chart-3)",
+  },
+  massKg: {
+    label: "Weight",
+    color: "var(--chart-2)",
   },
   waterUseKg: {
     label: "Water use",

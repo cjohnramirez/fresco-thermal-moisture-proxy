@@ -3,14 +3,19 @@
 import * as React from "react"
 import { toast } from "sonner"
 
+import { usableWaterTempC } from "@/lib/experiment/analytics"
 import {
   DEFAULT_BAG_ID,
   DEFAULT_CHART_RANGE,
 } from "@/lib/experiment/irrigation"
 import { createSessionId } from "@/lib/experiment/storage"
 import type { ChartRange } from "@/lib/experiment/types"
-import type { View } from "@/features/dashboard/lib/dashboard-types"
+import type {
+  ReadingsResponse,
+  View,
+} from "@/features/dashboard/lib/dashboard-types"
 
+import { fetchJson } from "./dashboard-api"
 import { INITIAL_SESSION_ID } from "./dashboard-constants"
 import { useDashboardCloudData } from "./use-dashboard-cloud-data"
 import { useIrrigationActions } from "./use-irrigation-actions"
@@ -66,6 +71,29 @@ export function useFrescoDashboard() {
     updateIrrigationEvent,
   } = useIrrigationActions({ bagId, mutateCloudData })
 
+  // Latest irrigation-water probe (GPIO 14). Weigh-context only: sourced here to
+  // prefill the Log Watering dialog, never rendered as a grow-bag channel.
+  const latestWaterTempC = usableWaterTempC(latest.get("water"))
+
+  const refreshWaterTemp = React.useCallback(async (): Promise<
+    number | null
+  > => {
+    try {
+      const query = new URLSearchParams({
+        channel: "water",
+        status: "ok",
+        page: "1",
+        pageSize: "1",
+        sessionId,
+      }).toString()
+      const payload = await fetchJson<ReadingsResponse>(`/api/readings?${query}`)
+      const readings = payload.readings ?? []
+      return usableWaterTempC(readings[readings.length - 1])
+    } catch {
+      return null
+    }
+  }, [sessionId])
+
   const refreshFromSupabase = React.useCallback(async () => {
     setSampleMode(false)
     await mutateCloudData()
@@ -98,9 +126,11 @@ export function useFrescoDashboard() {
     includeArchived,
     irrigationEvents,
     latest,
+    latestWaterTempC,
     loadingState,
     loadSample,
     pagination,
+    refreshWaterTemp,
     readingQuery,
     readings,
     readingsError,

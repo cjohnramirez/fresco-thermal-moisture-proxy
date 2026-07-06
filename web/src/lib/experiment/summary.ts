@@ -7,11 +7,12 @@ import {
   bucketStart,
   bucketTimeLabel,
   computeBaselineDrift,
+  computeCheckpointDrainage,
   computeDailyWaterUse,
-  computeFirstHourDrainage,
   computeWeighCompletion,
   eventMarkers,
 } from "./irrigation"
+import { CHANNELS } from "./types"
 import type {
   BucketSize,
   ExperimentSummary,
@@ -68,12 +69,19 @@ export function bucketedChartSeries(
     })
 }
 
+const GROW_BAG_CHANNEL_IDS = new Set<string>(CHANNELS.map((channel) => channel.id))
+
 function temperatureStats(readings: NormalizedReading[]) {
   let min: number | null = null
   let max: number | null = null
 
   for (const reading of readings) {
-    if (reading.status !== "ok" || reading.celsius === null) {
+    if (
+      reading.status !== "ok" ||
+      reading.celsius === null ||
+      // Exclude non grow-bag channels (e.g. the `water` probe) from the stat.
+      !GROW_BAG_CHANNEL_IDS.has(reading.channelId)
+    ) {
       continue
     }
 
@@ -114,7 +122,7 @@ export function buildExperimentSummary({
     irrigationMarkers: eventMarkers(events, bucket),
     baseline: computeBaselineDrift(events),
     dailyWaterUse: computeDailyWaterUse(events),
-    firstHourDrainage: computeFirstHourDrainage(events),
+    checkpointDrainage: computeCheckpointDrainage(events),
     wateringRecovery: irrigationRelaxationFromEvents(readings, events),
     weighCompletion: computeWeighCompletion(events),
     temperatureStats: temperatureStats(readings),
@@ -140,7 +148,7 @@ export function buildFallbackSummary(
     irrigationMarkers: eventMarkers(events, bucket),
     baseline: computeBaselineDrift(events),
     dailyWaterUse: computeDailyWaterUse(events),
-    firstHourDrainage: computeFirstHourDrainage(events),
+    checkpointDrainage: computeCheckpointDrainage(events),
     wateringRecovery: irrigationRelaxationFromEvents(readings, events),
     weighCompletion: computeWeighCompletion(events),
     temperatureStats: temperatureStats(readings),

@@ -1,15 +1,15 @@
 import { NextResponse } from "next/server"
 
 import {
+  cutoffAtForWatering,
   createIrrigationEventSchema,
+  IRRIGATION_EVENT_SELECT,
+  isBeforeWateringCutoff,
   normalizeIrrigationEventRow,
   toSupabaseIrrigationPayload,
   type SupabaseIrrigationEventRow,
 } from "@/lib/experiment/irrigation"
 import { createSupabaseServerClient, supabaseNotConfiguredResponse } from "@/lib/supabase/server"
-
-const eventSelect =
-  "id,bag_id,watered_at,water_l,water_temp_c,pre_mass_kg,post_mass_kg,drained_mass_kg,drained_at,note,created_at,archived_at"
 
 export async function GET(request: Request) {
   const supabase = createSupabaseServerClient()
@@ -24,7 +24,7 @@ export async function GET(request: Request) {
 
   let query = supabase
     .from("irrigation_events")
-    .select(eventSelect)
+    .select(IRRIGATION_EVENT_SELECT)
     .eq("bag_id", bagId)
     .order("watered_at", { ascending: false })
 
@@ -71,12 +71,23 @@ export async function POST(request: Request) {
     )
   }
 
+  if (!isBeforeWateringCutoff(parsed.data.wateredAt)) {
+    return NextResponse.json(
+      {
+        ok: false,
+        code: "after_cutoff",
+        message: "Watering must be logged before 6 PM Manila time.",
+      },
+      { status: 400 }
+    )
+  }
+
   const open = await supabase
     .from("irrigation_events")
     .select("id")
     .eq("bag_id", parsed.data.bagId)
-    .is("drained_mass_kg", null)
     .is("archived_at", null)
+    .gt("cutoff_at", new Date().toISOString())
     .limit(1)
 
   if (open.error) {
@@ -91,16 +102,21 @@ export async function POST(request: Request) {
       {
         ok: false,
         code: "open_event_exists",
-        message: "Log the +1 h weight before starting another watering.",
+        message: "Finish the current 10-minute weigh schedule before starting another watering.",
       },
       { status: 409 }
     )
   }
 
+  const input = {
+    ...parsed.data,
+    cutoffAt: cutoffAtForWatering(parsed.data.wateredAt),
+  }
+
   const { data, error } = await supabase
     .from("irrigation_events")
-    .insert(toSupabaseIrrigationPayload(parsed.data))
-    .select(eventSelect)
+    .insert(toSupabaseIrrigationPayload(input))
+    .select(IRRIGATION_EVENT_SELECT)
     .single()
 
   if (error) {

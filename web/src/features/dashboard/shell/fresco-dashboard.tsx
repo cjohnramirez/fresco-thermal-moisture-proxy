@@ -226,8 +226,10 @@ export function FrescoDashboard() {
       </SidebarInset>
       <LogWateringDialog
         key={wateringDialogKey}
+        defaultWaterTempC={dashboard.latestWaterTempC}
         open={wateringDialogOpen}
         onOpenChange={setWateringDialogOpen}
+        onRefreshWaterTemp={dashboard.refreshWaterTemp}
         onSubmit={dashboard.createIrrigationEvent}
       />
       <LogWeightDialog

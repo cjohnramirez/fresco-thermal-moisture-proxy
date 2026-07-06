@@ -1,7 +1,8 @@
 "use client"
 
 import * as React from "react"
-import { ClockIcon } from "lucide-react"
+import { ClockIcon, RefreshCwIcon } from "lucide-react"
+import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -19,12 +20,23 @@ import {
   FieldLabel,
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Spinner } from "@/components/ui/spinner"
 import { Textarea } from "@/components/ui/textarea"
 import {
   defaultWateredAtLocalValue,
+  formatManilaDateTime,
+  formatManilaTime,
   manilaLocalInputToIso,
   toManilaDatetimeLocalValue,
+  weightSlotsForEvent,
 } from "@/lib/experiment/irrigation"
 import type { IrrigationEvent } from "@/lib/experiment/types"
 
@@ -45,16 +57,40 @@ function requiredIso(formData: FormData, key: string) {
 }
 
 export function LogWateringDialog({
+  defaultWaterTempC,
   onOpenChange,
+  onRefreshWaterTemp,
   onSubmit,
   open,
 }: {
+  defaultWaterTempC: number | null
   onOpenChange: (open: boolean) => void
+  onRefreshWaterTemp: () => Promise<number | null>
   onSubmit: (payload: SubmitPayload) => Promise<unknown>
   open: boolean
 }) {
   const [submitting, setSubmitting] = React.useState(false)
   const [wateredAt, setWateredAt] = React.useState(defaultWateredAtLocalValue)
+  // Seeded once per dialog mount (the parent remounts via `key` on open), so the
+  // latest water reading prefills without an effect clobbering later edits.
+  const [waterTempC, setWaterTempC] = React.useState(() =>
+    defaultWaterTempC === null ? "" : String(defaultWaterTempC)
+  )
+  const [refreshingWaterTemp, setRefreshingWaterTemp] = React.useState(false)
+
+  const refreshWaterTemp = async () => {
+    setRefreshingWaterTemp(true)
+    try {
+      const value = await onRefreshWaterTemp()
+      if (value !== null) {
+        setWaterTempC(String(value))
+      } else {
+        toast.message("No fresh water reading available.")
+      }
+    } finally {
+      setRefreshingWaterTemp(false)
+    }
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -62,7 +98,7 @@ export function LogWateringDialog({
         <DialogHeader>
           <DialogTitle>Log Watering</DialogTitle>
           <DialogDescription>
-            Record the watering time, water amount, and bag mass readings.
+            Record the watering time and water amount.
           </DialogDescription>
         </DialogHeader>
         <form
@@ -78,8 +114,6 @@ export function LogWateringDialog({
                 wateredAt: manilaLocalInputToIso(wateredAt),
                 waterL: optionalNumber(formData, "waterL") ?? 2,
                 waterTempC: optionalNumber(formData, "waterTempC"),
-                preMassKg: optionalNumber(formData, "preMassKg"),
-                postMassKg: optionalNumber(formData, "postMassKg"),
                 note: String(formData.get("note") ?? ""),
               })
               form.reset()
@@ -142,39 +176,27 @@ export function LogWateringDialog({
                   min="0"
                   max="60"
                   autoComplete="off"
+                  value={waterTempC}
+                  onChange={(event) => setWaterTempC(event.target.value)}
                 />
-              </Field>
-            </FieldGroup>
-            <FieldGroup className="grid gap-3 md:grid-cols-2">
-              <Field>
-                <FieldLabel htmlFor="watering-pre-mass">
-                  Pre-Water Mass (kg)
-                </FieldLabel>
-                <Input
-                  id="watering-pre-mass"
-                  name="preMassKg"
-                  type="number"
-                  inputMode="decimal"
-                  step="0.001"
-                  min="0.5"
-                  max="20"
-                  autoComplete="off"
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="watering-post-mass">
-                  Post-Water Mass (kg)
-                </FieldLabel>
-                <Input
-                  id="watering-post-mass"
-                  name="postMassKg"
-                  type="number"
-                  inputMode="decimal"
-                  step="0.001"
-                  min="0.5"
-                  max="20"
-                  autoComplete="off"
-                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={refreshWaterTemp}
+                  disabled={refreshingWaterTemp || submitting}
+                >
+                  {refreshingWaterTemp ? (
+                    <Spinner data-icon="inline-start" />
+                  ) : (
+                    <RefreshCwIcon data-icon="inline-start" />
+                  )}
+                  {refreshingWaterTemp ? "Refreshing..." : "Refresh Water Temp"}
+                </Button>
+                <FieldDescription>
+                  Prefilled from the water probe (GPIO 14). Edit or clear if
+                  needed.
+                </FieldDescription>
               </Field>
             </FieldGroup>
             <Field>
@@ -215,18 +237,36 @@ export function LogWeightDialog({
   open: boolean
 }) {
   const [submitting, setSubmitting] = React.useState(false)
-  const defaultDrainedAt = React.useMemo(
+  const defaultWeighedAt = React.useMemo(
     () => (open ? toManilaDatetimeLocalValue(new Date()) : ""),
     [open],
   )
+  const slotOptions = React.useMemo(
+    () => (event && open ? weightSlotsForEvent(event, new Date()) : []),
+    [event, open]
+  )
+  const defaultSlotAt = React.useMemo(
+    () =>
+      slotOptions.find((slot) => slot.status === "due")?.slotAt ??
+      slotOptions.find((slot) => slot.status === "upcoming")?.slotAt ??
+      slotOptions.find((slot) => slot.status === "skipped")?.slotAt ??
+      slotOptions[0]?.slotAt ??
+      "",
+    [slotOptions]
+  )
+  const [selectedSlotAt, setSelectedSlotAt] = React.useState("")
+  const effectiveSlotAt =
+    selectedSlotAt && slotOptions.some((slot) => slot.slotAt === selectedSlotAt)
+      ? selectedSlotAt
+      : defaultSlotAt
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Log +1 h Weight</DialogTitle>
+          <DialogTitle>Log Checkpoint Weight</DialogTitle>
           <DialogDescription>
-            This updates the open watering row with the drained bag mass.
+            Save one scheduled 10-minute weight into the watering row.
           </DialogDescription>
         </DialogHeader>
         <form
@@ -234,7 +274,7 @@ export function LogWeightDialog({
           className="flex flex-col gap-4"
           onSubmit={async (submitEvent) => {
             submitEvent.preventDefault()
-            if (!event) {
+            if (!event || !effectiveSlotAt) {
               return
             }
 
@@ -243,8 +283,12 @@ export function LogWeightDialog({
             setSubmitting(true)
             try {
               await onSubmit(event.id, {
-                drainedMassKg: optionalNumber(formData, "drainedMassKg"),
-                drainedAt: requiredIso(formData, "drainedAt"),
+                weightLog: {
+                  slotAt: effectiveSlotAt,
+                  weighedAt: requiredIso(formData, "weighedAt"),
+                  massKg: optionalNumber(formData, "massKg"),
+                  note: String(formData.get("note") ?? ""),
+                },
               })
               form.reset()
               onOpenChange(false)
@@ -255,12 +299,36 @@ export function LogWeightDialog({
         >
           <FieldGroup>
             <Field>
-              <FieldLabel htmlFor="weight-drained-mass">
-                Drained Mass (kg)
+              <FieldLabel htmlFor="weight-slot">Checkpoint Slot</FieldLabel>
+              <Select
+                value={effectiveSlotAt}
+                onValueChange={(value) => setSelectedSlotAt(value ?? "")}
+                disabled={submitting || !event}
+              >
+                <SelectTrigger id="weight-slot" className="w-full">
+                  <SelectValue placeholder="Select checkpoint" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    {slotOptions.map((slot) => (
+                      <SelectItem key={slot.slotAt} value={slot.slotAt}>
+                        {formatManilaTime(slot.slotAt)} - {slot.status}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+              <FieldDescription>
+                Slots run every 10 minutes until {event ? formatManilaDateTime(event.cutoffAt) : "the cutoff"}.
+              </FieldDescription>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="weight-mass">
+                Weight (kg)
               </FieldLabel>
               <Input
-                id="weight-drained-mass"
-                name="drainedMassKg"
+                id="weight-mass"
+                name="massKg"
                 type="number"
                 inputMode="decimal"
                 step="0.001"
@@ -271,23 +339,33 @@ export function LogWeightDialog({
               />
             </Field>
             <Field>
-              <FieldLabel htmlFor="weight-drained-at">Logged At</FieldLabel>
+              <FieldLabel htmlFor="weight-weighed-at">Weighed At</FieldLabel>
               <Input
-                id="weight-drained-at"
-                name="drainedAt"
+                id="weight-weighed-at"
+                name="weighedAt"
                 type="datetime-local"
-                defaultValue={defaultDrainedAt}
+                defaultValue={defaultWeighedAt}
                 autoComplete="off"
                 required
               />
-              <FieldDescription>Use the actual weigh time if it was late.</FieldDescription>
+              <FieldDescription>Use the actual time if the checkpoint was late.</FieldDescription>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="weight-note">Note</FieldLabel>
+              <Textarea
+                id="weight-note"
+                name="note"
+                rows={2}
+                autoComplete="off"
+                placeholder="Optional context..."
+              />
             </Field>
           </FieldGroup>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={submitting || !event}>
+            <Button type="submit" disabled={submitting || !event || !effectiveSlotAt}>
               {submitting && <Spinner data-icon="inline-start" />}
               {submitting ? "Saving..." : "Save Weight"}
             </Button>

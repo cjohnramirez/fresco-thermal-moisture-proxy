@@ -120,7 +120,7 @@ function DashboardSwitcher({
             render={
               <SidebarMenuButton
                 size="lg"
-                className="data-[popup-open]:bg-sidebar-accent data-[popup-open]:text-sidebar-accent-foreground"
+                className="data-popup-open:bg-sidebar-accent data-popup-open:text-sidebar-accent-foreground"
               />
             }
           >
@@ -476,8 +476,10 @@ export function FrescoAppShell() {
 
       <LogWateringDialog
         key={wateringDialogKey}
+        defaultWaterTempC={temperature.latestWaterTempC}
         open={wateringDialogOpen}
         onOpenChange={setWateringDialogOpen}
+        onRefreshWaterTemp={temperature.refreshWaterTemp}
         onSubmit={temperature.createIrrigationEvent}
       />
       <LogWeightDialog

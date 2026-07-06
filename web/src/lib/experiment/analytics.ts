@@ -20,6 +20,16 @@ export function latestByChannel(readings: NormalizedReading[]) {
   return latest
 }
 
+// Extracts a usable Celsius value from a reading (e.g. the `water` channel).
+// Returns null unless the reading is present, `ok`, and has a numeric value.
+export function usableWaterTempC(
+  reading: NormalizedReading | null | undefined
+): number | null {
+  return reading && reading.status === "ok" && reading.celsius !== null
+    ? reading.celsius
+    : null
+}
+
 export function sensorHealth(readings: NormalizedReading[]) {
   const latest = latestByChannel(readings)
   let ok = 0

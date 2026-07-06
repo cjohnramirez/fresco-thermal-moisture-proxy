@@ -1,15 +1,16 @@
 import { NextResponse } from "next/server"
 
 import {
+  cutoffAtForWatering,
+  IRRIGATION_EVENT_SELECT,
+  isBeforeWateringCutoff,
+  mergeWeightLog,
   normalizeIrrigationEventRow,
   toSupabaseIrrigationPayload,
   updateIrrigationEventSchema,
   type SupabaseIrrigationEventRow,
 } from "@/lib/experiment/irrigation"
 import { createSupabaseServerClient, supabaseNotConfiguredResponse } from "@/lib/supabase/server"
-
-const eventSelect =
-  "id,bag_id,watered_at,water_l,water_temp_c,pre_mass_kg,post_mass_kg,drained_mass_kg,drained_at,note,created_at,archived_at"
 
 type RouteContext = {
   params: Promise<{ id: string }>
@@ -38,11 +39,67 @@ export async function PATCH(request: Request, context: RouteContext) {
     )
   }
 
+  const existing = await supabase
+    .from("irrigation_events")
+    .select(IRRIGATION_EVENT_SELECT)
+    .eq("id", id)
+    .single()
+
+  if (existing.error) {
+    return NextResponse.json(
+      { ok: false, code: "supabase_error", message: existing.error.message },
+      { status: 502 }
+    )
+  }
+
+  const event = normalizeIrrigationEventRow(
+    existing.data as SupabaseIrrigationEventRow
+  )
+  const nextInput = { ...parsed.data }
+
+  if (nextInput.wateredAt !== undefined) {
+    if (!isBeforeWateringCutoff(nextInput.wateredAt)) {
+      return NextResponse.json(
+        {
+          ok: false,
+          code: "after_cutoff",
+          message: "Watering must be logged before 6 PM Manila time.",
+        },
+        { status: 400 }
+      )
+    }
+
+    nextInput.cutoffAt = cutoffAtForWatering(nextInput.wateredAt)
+  }
+
+  if (nextInput.weightLog) {
+    const scheduleEvent = {
+      ...event,
+      wateredAt: nextInput.wateredAt ?? event.wateredAt,
+      cutoffAt: nextInput.cutoffAt ?? event.cutoffAt,
+      weightLogs: nextInput.weightLogs ?? event.weightLogs,
+    }
+
+    try {
+      nextInput.weightLogs = mergeWeightLog(scheduleEvent, nextInput.weightLog)
+    } catch (error) {
+      return NextResponse.json(
+        {
+          ok: false,
+          code: "invalid_weight_slot",
+          message:
+            error instanceof Error ? error.message : "Invalid weight slot.",
+        },
+        { status: 400 }
+      )
+    }
+  }
+
   const { data, error } = await supabase
     .from("irrigation_events")
-    .update(toSupabaseIrrigationPayload(parsed.data))
+    .update(toSupabaseIrrigationPayload(nextInput))
     .eq("id", id)
-    .select(eventSelect)
+    .select(IRRIGATION_EVENT_SELECT)
     .single()
 
   if (error) {
@@ -70,7 +127,7 @@ export async function DELETE(_request: Request, context: RouteContext) {
     .from("irrigation_events")
     .update({ archived_at: new Date().toISOString() })
     .eq("id", id)
-    .select(eventSelect)
+    .select(IRRIGATION_EVENT_SELECT)
     .single()
 
   if (error) {

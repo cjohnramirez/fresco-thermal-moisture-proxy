@@ -1,6 +1,10 @@
 import { CHANNELS } from "@/lib/experiment/types"
 
 export function labelForChannel(channelId: string) {
+  if (channelId === "water") {
+    return "Water"
+  }
+
   return CHANNELS.find((channel) => channel.id === channelId)?.label ?? channelId
 }
 

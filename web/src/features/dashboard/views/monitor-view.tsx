@@ -103,108 +103,104 @@ export function MonitorView({
     loadingState.readingsLoading || loadingState.readingsRefreshing;
 
   return (
-    <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(320px,0.8fr)_minmax(0,1.2fr)]">
-      <div className="flex min-w-0 flex-col gap-4">
-        <Card>
-          <CardHeader>
-            <CardTitle>Supabase Feed</CardTitle>
-            <CardDescription>
-              Reads Supabase temperature rows one page at a time.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-3">
-            <div className="flex flex-wrap gap-2">
-              <Button
-                type="button"
-                onClick={refreshFromSupabase}
-                disabled={loadingState.cloudRefreshing}
-              >
-                {loadingState.cloudRefreshing ? (
-                  <Spinner data-icon="inline-start" />
-                ) : (
-                  <RefreshCwIcon data-icon="inline-start" />
-                )}
-                {loadingState.cloudRefreshing ? "Refreshing..." : "Refresh"}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={loadSample}
-                disabled={loadingState.cloudRefreshing}
-              >
-                Load Sample
-              </Button>
-            </div>
-            <Alert
-              variant={
-                cloudState.status === "error" ? "destructive" : undefined
-              }
-            >
-              {cloudState.status === "error" ? (
-                <AlertCircleIcon aria-hidden="true" />
-              ) : (
-                <CloudIcon aria-hidden="true" />
-              )}
-              <AlertTitle>{cloudState.status}</AlertTitle>
-              <AlertDescription>{cloudState.message}</AlertDescription>
-            </Alert>
-          </CardContent>
-          <CardFooter>
-            <p className="text-sm text-muted-foreground">
-              Configure Supabase environment variables before using live cloud
-              data.
-            </p>
-          </CardFooter>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Watering Controls</CardTitle>
-            <CardDescription>
-              Log watering and +1 h bag weights to Supabase.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-wrap gap-2">
+    <div className="flex min-w-0 flex-col gap-4">
+      <Card>
+        <CardHeader>
+          <CardTitle>Supabase Feed</CardTitle>
+          <CardDescription>
+            Reads Supabase temperature rows one page at a time.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3">
+          <div className="flex flex-wrap gap-2">
             <Button
               type="button"
-              onClick={onLogWatering}
-              disabled={wateringStatus.state !== "idle"}
+              onClick={refreshFromSupabase}
+              disabled={loadingState.cloudRefreshing}
             >
-              <DropletsIcon data-icon="inline-start" />
-              Log Watering
+              {loadingState.cloudRefreshing ? (
+                <Spinner data-icon="inline-start" />
+              ) : (
+                <RefreshCwIcon data-icon="inline-start" />
+              )}
+              {loadingState.cloudRefreshing ? "Refreshing..." : "Refresh"}
             </Button>
             <Button
               type="button"
               variant="outline"
-              onClick={onLogWeight}
-              disabled={wateringStatus.state === "idle"}
+              onClick={loadSample}
+              disabled={loadingState.cloudRefreshing}
             >
-              <ScaleIcon data-icon="inline-start" />
-              Log Weight
+              Load Sample
             </Button>
-          </CardContent>
-        </Card>
+          </div>
+          <Alert
+            variant={cloudState.status === "error" ? "destructive" : undefined}
+          >
+            {cloudState.status === "error" ? (
+              <AlertCircleIcon aria-hidden="true" />
+            ) : (
+              <CloudIcon aria-hidden="true" />
+            )}
+            <AlertTitle>{cloudState.status}</AlertTitle>
+            <AlertDescription>{cloudState.message}</AlertDescription>
+          </Alert>
+        </CardContent>
+        <CardFooter>
+          <p className="text-sm text-muted-foreground">
+            Configure Supabase environment variables before using live cloud
+            data.
+          </p>
+        </CardFooter>
+      </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Irrigation Events</CardTitle>
-            <CardDescription>
-              Edit watering rows, log late weights, or archive bad entries.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <IrrigationEventsTable
-              events={irrigationEvents}
-              includeArchived={includeArchived}
-              loading={loadingState.eventsLoading}
-              onArchive={archiveIrrigationEvent}
-              onIncludeArchivedChange={setIncludeArchived}
-              onUpdate={updateIrrigationEvent}
-              refreshing={loadingState.eventsRefreshing}
-            />
-          </CardContent>
-        </Card>
-      </div>
+      <Card>
+        <CardHeader>
+          <CardTitle>Watering Controls</CardTitle>
+          <CardDescription>
+            Log watering and 10-minute bag weights to Supabase.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            onClick={onLogWatering}
+            disabled={wateringStatus.state !== "idle"}
+          >
+            <DropletsIcon data-icon="inline-start" />
+            Log Watering
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onLogWeight}
+            disabled={wateringStatus.state === "idle"}
+          >
+            <ScaleIcon data-icon="inline-start" />
+            Log Weight
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Irrigation Events</CardTitle>
+          <CardDescription>
+            Open a row for checkpoint details, weight logs, and trend chart.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <IrrigationEventsTable
+            events={irrigationEvents}
+            includeArchived={includeArchived}
+            loading={loadingState.eventsLoading}
+            onArchive={archiveIrrigationEvent}
+            onIncludeArchivedChange={setIncludeArchived}
+            onUpdate={updateIrrigationEvent}
+            refreshing={loadingState.eventsRefreshing}
+          />
+        </CardContent>
+      </Card>
 
       <Card className="min-w-0">
         <CardHeader>

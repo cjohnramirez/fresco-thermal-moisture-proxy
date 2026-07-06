@@ -4,6 +4,7 @@ import {
   DownloadIcon,
   DropletsIcon,
   FileDownIcon,
+  ScaleIcon,
   TableIcon,
 } from "lucide-react"
 import { toast } from "sonner"
@@ -31,6 +32,7 @@ import type {
 import {
   downloadCsv,
   irrigationEventsToCsv,
+  irrigationWeightLogsToCsv,
   readingsToCsv,
   weekAnalysisToCsv,
 } from "@/lib/experiment/csv"
@@ -129,6 +131,18 @@ export function ExportMenu({
           >
             <DropletsIcon />
             Active Irrigation Events
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={() =>
+              handleCsvExport({
+                filename: `${sessionId}-irrigation-weight-logs.csv`,
+                content: irrigationWeightLogsToCsv(irrigationEvents),
+                label: "Irrigation weight logs",
+              })
+            }
+          >
+            <ScaleIcon />
+            Irrigation Weight Logs
           </DropdownMenuItem>
           <DropdownMenuItem
             disabled={!weekAnalysis}

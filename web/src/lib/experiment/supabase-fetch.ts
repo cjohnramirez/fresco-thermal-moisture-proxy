@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import {
+  IRRIGATION_EVENT_SELECT,
   normalizeIrrigationEventRow,
   type SupabaseIrrigationEventRow,
 } from "./irrigation"
@@ -71,9 +72,7 @@ export async function fetchIrrigationEventsInRange({
 }) {
   let query = supabase
     .from("irrigation_events")
-    .select(
-      "id,bag_id,watered_at,water_l,water_temp_c,pre_mass_kg,post_mass_kg,drained_mass_kg,drained_at,note,created_at,archived_at"
-    )
+    .select(IRRIGATION_EVENT_SELECT)
     .eq("bag_id", bagId)
     .order("watered_at", { ascending: true })
 

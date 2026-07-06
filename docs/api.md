@@ -11,12 +11,19 @@ Source: [src/temperature.cpp](../src/temperature.cpp), configured by [include/Te
 
 ### Sensor Mapping
 
-| Channel id | Board label | ESP32 GPIO |
-| --- | --- | --- |
-| `control` | D5 | 5 |
-| `surface` | D4 | 4 |
-| `roots` | D16 | 16 |
-| `bottom` | D17 | 17 |
+| Channel id | Board label | ESP32 GPIO | Role |
+| --- | --- | --- | --- |
+| `control` | D5 | 5 | Ambient/control reference |
+| `surface` | D4 | 4 | Top of grow medium |
+| `roots` | D16 | 16 | Root zone |
+| `bottom` | D17 | 17 | Lower bag / drainage zone |
+| `water` | D14 | 14 | Irrigation-water probe (see below) |
+
+The `water` channel is a fifth DS18B20 that measures irrigation-water
+temperature. It rides the same continuous upload as the four grow-bag probes,
+but it is **not** a grow-medium probe: the dashboard treats it as weigh-context
+only and reads it once per watering to fill `irrigation_events.water_temp_c`.
+See [water-temp-sensor.md](water-temp-sensor.md).
 
 ### Payload
 
@@ -27,13 +34,14 @@ Each firmware upload inserts one JSON payload into `public.temperature_readings.
   "type": "temperature",
   "seq": 42,
   "ms": 123456,
-  "sensors": 4,
+  "sensors": 5,
   "ts": "ok",
   "channels": [
     { "id": "control", "pin": 5, "devices": 1, "ts": "ok", "tc": 24.5, "tf": 76.1 },
     { "id": "surface", "pin": 4, "devices": 1, "ts": "ok", "tc": 23.9, "tf": 75.0 },
     { "id": "roots", "pin": 16, "devices": 1, "ts": "ok", "tc": 22.1, "tf": 71.8 },
-    { "id": "bottom", "pin": 17, "devices": 0, "ts": "no_sensor", "tc": null, "tf": null }
+    { "id": "bottom", "pin": 17, "devices": 0, "ts": "no_sensor", "tc": null, "tf": null },
+    { "id": "water", "pin": 14, "devices": 1, "ts": "ok", "tc": 24.8, "tf": 76.6 }
   ]
 }
 ```
@@ -131,7 +139,7 @@ The firmware counts both hall-sensor edges. A physical bucket tip is exposed as 
 | `GET /api/readings` | Paged, flattened temperature readings from Supabase |
 | `GET /api/irrigation-events` | Active or archived watering rows |
 | `POST /api/irrigation-events` | Create a watering row |
-| `PATCH /api/irrigation-events/[id]` | Update watering or +1 h weigh fields |
+| `PATCH /api/irrigation-events/[id]` | Update watering metadata or one 10-minute checkpoint weight |
 | `DELETE /api/irrigation-events/[id]` | Soft delete through `archived_at` |
 | `GET /api/experiment-summary` | Bucketed chart and metric data |
 | `POST /api/week-analysis` | Full-resolution server-side 7-day analysis |
@@ -196,20 +204,21 @@ create table if not exists public.irrigation_events (
   id bigint generated always as identity primary key,
   bag_id text not null default 'bag-1',
   watered_at timestamptz not null default now(),
+  cutoff_at timestamptz not null,
   water_l numeric(5,2) not null default 2.0,
   water_temp_c numeric(4,1),
-  pre_mass_kg numeric(6,3),
-  post_mass_kg numeric(6,3),
-  drained_mass_kg numeric(6,3),
-  drained_at timestamptz,
+  weight_logs jsonb not null default '[]'::jsonb,
   note text,
   created_at timestamptz not null default now(),
   archived_at timestamptz
 );
 
-create unique index if not exists irrigation_events_one_open_per_bag
-  on public.irrigation_events (bag_id)
-  where drained_mass_kg is null and archived_at is null;
+create index if not exists irrigation_events_bag_watered_at_idx
+  on public.irrigation_events (bag_id, watered_at desc);
+
+create index if not exists irrigation_events_open_window_idx
+  on public.irrigation_events (bag_id, cutoff_at)
+  where archived_at is null;
 
 alter table public.irrigation_events enable row level security;
 
@@ -231,6 +240,47 @@ create policy "anon edit irrigation"
   to anon
   using (true)
   with check (true);
+```
+
+`weight_logs` stores an array of checkpoint objects:
+
+```json
+[
+  {
+    "slotAt": "2026-07-02T00:10:00.000Z",
+    "weighedAt": "2026-07-02T00:11:00.000Z",
+    "massKg": 9.5,
+    "note": "first checkpoint"
+  }
+]
+```
+
+The app sets `cutoff_at` to 6 PM Manila time on the watering date. It prevents a second open watering row for a bag while an active row has `cutoff_at > now()`.
+
+For an existing table that used the old one-hour mass columns, migrate in two
+steps: add the new columns, deploy the app, then drop old columns only after
+confirming no data still needs to be exported.
+
+```sql
+alter table public.irrigation_events
+  add column if not exists cutoff_at timestamptz,
+  add column if not exists weight_logs jsonb not null default '[]'::jsonb;
+
+update public.irrigation_events
+set cutoff_at =
+  (((watered_at at time zone 'Asia/Manila')::date + time '18:00')
+    at time zone 'Asia/Manila')
+where cutoff_at is null;
+
+alter table public.irrigation_events
+  alter column cutoff_at set not null;
+
+-- Optional cleanup after exporting legacy mass data.
+alter table public.irrigation_events
+  drop column if exists pre_mass_kg,
+  drop column if exists post_mass_kg,
+  drop column if exists drained_mass_kg,
+  drop column if exists drained_at;
 ```
 
 ### Rain Gauge Sync Tables
@@ -291,11 +341,12 @@ Server-side sync uses `SUPABASE_SERVICE_ROLE_KEY`, so inserts/upserts do not nee
 - Pending half-tip: `edges` is odd.
 - Rainfall ml: `tips * mlPerTip`.
 - Rainfall mm: `(rainfallMl / catchmentAreaCm2) * 10`, when catchment area is known.
-- Open irrigation event: latest active row where `drained_mass_kg is null`.
-- Due time: `watered_at + 1 hour`.
-- Overdue irrigation weigh: at least 2 hours after `watered_at`.
-- First-hour drainage: `post_mass_kg - drained_mass_kg`.
-- Daily water use: `drained_mass_kg(n) - pre_mass_kg(n + 1)`.
-- Baseline drift: slope of `drained_mass_kg` over `watered_at`; flat is `abs(slope) < 0.05 kg/day`.
+- Open irrigation event: latest active row where `cutoff_at > now()`.
+- Checkpoint slots: every 10 minutes after `watered_at` through `cutoff_at`.
+- Due checkpoint: an unlogged slot whose scheduled `slotAt` is at or before now.
+- Skipped checkpoint: an unlogged slot after `cutoff_at`.
+- Checkpoint weight change: first logged checkpoint mass minus latest logged checkpoint mass.
+- Daily water use: first logged checkpoint mass minus latest logged checkpoint mass for each usable watering window.
+- Baseline drift: slope of latest logged checkpoint mass over `watered_at`; flat is `abs(slope) < 0.05 kg/day`.
 
 Timestamps are stored in UTC and displayed in `Asia/Manila` where the dashboard shows user-facing time.

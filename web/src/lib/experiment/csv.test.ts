@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import {
   downloadCsv,
   irrigationEventsToCsv,
+  irrigationWeightLogsToCsv,
   readingsToCsv,
   weekAnalysisToCsv,
 } from "./csv"
@@ -46,12 +47,23 @@ describe("csv export", () => {
         id: "event-1",
         bagId: "bag-1",
         wateredAt: "2026-07-02T00:00:00.000Z",
+        cutoffAt: "2026-07-02T10:00:00.000Z",
         waterL: 2,
         waterTempC: 24.5,
-        preMassKg: 7.5,
-        postMassKg: 9.5,
-        drainedMassKg: 8.8,
-        drainedAt: "2026-07-02T01:00:00.000Z",
+        weightLogs: [
+          {
+            slotAt: "2026-07-02T00:10:00.000Z",
+            weighedAt: "2026-07-02T00:10:00.000Z",
+            massKg: 9.5,
+            note: "first",
+          },
+          {
+            slotAt: "2026-07-02T00:20:00.000Z",
+            weighedAt: "2026-07-02T00:21:00.000Z",
+            massKg: 9.3,
+            note: "",
+          },
+        ],
         note: 'watered, then "weighed"',
         createdAt: "2026-07-02T00:00:00.000Z",
         archivedAt: null,
@@ -60,12 +72,10 @@ describe("csv export", () => {
         id: "archived",
         bagId: "bag-1",
         wateredAt: "2026-07-01T00:00:00.000Z",
+        cutoffAt: "2026-07-01T10:00:00.000Z",
         waterL: 2,
         waterTempC: null,
-        preMassKg: null,
-        postMassKg: null,
-        drainedMassKg: null,
-        drainedAt: null,
+        weightLogs: [],
         note: "",
         createdAt: "2026-07-01T00:00:00.000Z",
         archivedAt: "2026-07-01T02:00:00.000Z",
@@ -75,6 +85,34 @@ describe("csv export", () => {
     expect(csv.split("\n")).toHaveLength(2)
     expect(csv).toContain('"watered, then ""weighed"""')
     expect(csv).not.toContain("2026-07-01T00:00:00.000Z")
+  })
+
+  it("exports one row per irrigation weight log", () => {
+    const csv = irrigationWeightLogsToCsv([
+      {
+        id: "event-1",
+        bagId: "bag-1",
+        wateredAt: "2026-07-02T00:00:00.000Z",
+        cutoffAt: "2026-07-02T10:00:00.000Z",
+        waterL: 2,
+        waterTempC: null,
+        weightLogs: [
+          {
+            slotAt: "2026-07-02T00:10:00.000Z",
+            weighedAt: "2026-07-02T00:11:00.000Z",
+            massKg: 9.5,
+            note: "first checkpoint",
+          },
+        ],
+        note: "",
+        createdAt: "2026-07-02T00:00:00.000Z",
+        archivedAt: null,
+      },
+    ] as IrrigationEvent[])
+
+    expect(csv.split("\n")).toHaveLength(2)
+    expect(csv).toContain("event_id,bag_id,slot_at")
+    expect(csv).toContain("first checkpoint")
   })
 
   it("exports compact full-week analysis metrics", () => {
@@ -101,9 +139,9 @@ describe("csv export", () => {
           waterUseKg: 1.2,
         },
       ],
-      firstHourDrainage: [],
+      checkpointDrainage: [],
       wateringRecovery: [],
-      weighCompletion: { completed: 1, total: 1, due: 0, overdue: 0, percent: 100 },
+      weighCompletion: { completed: 1, total: 1, due: 0, skipped: 0, percent: 100 },
       temperatureStats: { min: 24, max: 28 },
       from: "2026-07-01T00:00:00.000Z",
       to: "2026-07-08T00:00:00.000Z",

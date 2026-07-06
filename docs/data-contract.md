@@ -14,6 +14,12 @@ type TemperatureSupabaseRow = {
 }
 ```
 
+The `water` channel (GPIO 14) is the irrigation-water probe. It flattens into a
+`TemperatureReading` like any other channel, but it is weigh-context only: it is
+excluded from the grow-bag probe cards, thermal spread, gradient, and swing, and
+is read once per watering to fill `IrrigationEvent.waterTempC`. See
+[water-temp-sensor.md](water-temp-sensor.md).
+
 The frontend flattens every `payload.channels[]` item into one reading row.
 
 ```ts
@@ -22,7 +28,7 @@ type TemperatureReading = {
   receivedAt: string
   seq: number | null
   deviceMs: number | null
-  channelId: "control" | "surface" | "roots" | "bottom" | string
+  channelId: "control" | "surface" | "roots" | "bottom" | "water" | string
   pin: number
   devices: number | null
   status: string
@@ -36,24 +42,37 @@ type TemperatureReading = {
 
 ## Irrigation Events
 
-One watering event is one Supabase row. The +1 h weigh updates the same row.
+One watering event is one Supabase row. Checkpoint weights update the same row
+as `weightLogs`.
 
 ```ts
+type IrrigationWeightLog = {
+  slotAt: string
+  weighedAt: string
+  massKg: number
+  note: string
+}
+
 type IrrigationEvent = {
   id: string
   bagId: string
   wateredAt: string
+  cutoffAt: string
   waterL: number
   waterTempC: number | null
-  preMassKg: number | null
-  postMassKg: number | null
-  drainedMassKg: number | null
-  drainedAt: string | null
+  weightLogs: IrrigationWeightLog[]
   note: string
   createdAt: string
   archivedAt: string | null
 }
 ```
+
+The first checkpoint slot is 10 minutes after `wateredAt`; slots repeat every
+10 minutes through the 6 PM Manila cutoff stored in `cutoffAt`.
+
+`waterTempC` is one value per watering, not per checkpoint. It is sourced from
+the `water` temperature channel: when a watering is logged, the app reads the
+latest `water` reading and uses it to fill the field (still human-editable).
 
 Rows with `archivedAt` are hidden from active charts and exports by default.
 
@@ -180,7 +199,13 @@ session_id,received_at,seq,device_ms,channel_id,pin,devices,status,celsius,fahre
 Irrigation CSV columns:
 
 ```text
-id,bag_id,watered_at,water_l,water_temp_c,pre_mass_kg,post_mass_kg,drained_mass_kg,drained_at,note,created_at,archived_at
+id,bag_id,watered_at,cutoff_at,water_l,water_temp_c,weight_log_count,latest_weight_kg,weight_logs,note,created_at,archived_at
+```
+
+Irrigation weight-log CSV columns:
+
+```text
+event_id,bag_id,slot_at,weighed_at,mass_kg,note,watered_at,cutoff_at,archived_at
 ```
 
 Rain readings CSV columns:
@@ -198,7 +223,7 @@ id,source_row,bucket_1_volume_ml,bucket_2_volume_ml,pair_average_ml,note
 Analytics summary CSV columns:
 
 ```text
-metric,range,value,unit,notes
+metric,day,value,unit,from,to,notes
 ```
 
 Week-analysis CSV columns:

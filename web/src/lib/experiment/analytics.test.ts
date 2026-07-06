@@ -5,6 +5,7 @@ import {
   irrigationRelaxationFromEvents,
   sensorHealth,
   temperatureSpread,
+  usableWaterTempC,
 } from "./analytics"
 import type { IrrigationEvent, NormalizedReading } from "./types"
 
@@ -59,12 +60,17 @@ describe("analytics", () => {
         id: "event-1",
         bagId: "bag-1",
         wateredAt: "2026-07-02T00:00:00.000Z",
+        cutoffAt: "2026-07-02T10:00:00.000Z",
         waterL: 2,
         waterTempC: null,
-        preMassKg: 9,
-        postMassKg: 11,
-        drainedMassKg: 10,
-        drainedAt: "2026-07-02T01:00:00.000Z",
+        weightLogs: [
+          {
+            slotAt: "2026-07-02T00:10:00.000Z",
+            weighedAt: "2026-07-02T00:10:00.000Z",
+            massKg: 11,
+            note: "",
+          },
+        ],
         note: "",
         createdAt: "2026-07-02T00:00:00.000Z",
         archivedAt: null,
@@ -76,5 +82,42 @@ describe("analytics", () => {
       samples: 3,
       delta: -1,
     })
+  })
+
+  it("extracts a usable water temperature only from ok, non-null readings", () => {
+    expect(
+      usableWaterTempC({
+        ...baseReading,
+        id: "w",
+        channelId: "water",
+        pin: 14,
+        celsius: 24.8,
+        fahrenheit: 76.6,
+      } as NormalizedReading)
+    ).toBe(24.8)
+
+    expect(usableWaterTempC(undefined)).toBeNull()
+    expect(usableWaterTempC(null)).toBeNull()
+    expect(
+      usableWaterTempC({
+        ...baseReading,
+        id: "w-off",
+        channelId: "water",
+        pin: 14,
+        status: "no_sensor",
+        celsius: 24.8,
+        fahrenheit: 76.6,
+      } as NormalizedReading)
+    ).toBeNull()
+    expect(
+      usableWaterTempC({
+        ...baseReading,
+        id: "w-null",
+        channelId: "water",
+        pin: 14,
+        celsius: null,
+        fahrenheit: null,
+      } as NormalizedReading)
+    ).toBeNull()
   })
 })

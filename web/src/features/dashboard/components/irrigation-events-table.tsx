@@ -1,9 +1,14 @@
 "use client"
 
 import * as React from "react"
-import { ArchiveIcon, CheckIcon, PencilIcon, XIcon } from "lucide-react"
+import {
+  ArchiveIcon,
+  CheckIcon,
+  ListChecksIcon,
+  PencilIcon,
+  XIcon,
+} from "lucide-react"
 
-import { Button } from "@/components/ui/button"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -16,6 +21,12 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import {
+  Field,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Spinner } from "@/components/ui/spinner"
 import { Switch } from "@/components/ui/switch"
@@ -29,11 +40,14 @@ import {
 } from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
 import { TableRowsSkeleton } from "@/features/dashboard/components/loading-states"
+import { IrrigationEventDetailsDialog } from "@/features/dashboard/components/irrigation-event-details-dialog"
 import {
   formatManilaDateTime,
-  lateWeighLabel,
+  formatManilaTime,
+  latestWeightLog,
   manilaLocalInputToIso,
   toManilaDatetimeLocalValue,
+  weightSlotSummary,
 } from "@/lib/experiment/irrigation"
 import type { IrrigationEvent } from "@/lib/experiment/types"
 
@@ -47,17 +61,32 @@ function optionalNumber(formData: FormData, key: string) {
   return Number.isFinite(numberValue) ? numberValue : null
 }
 
-function optionalIso(formData: FormData, key: string) {
-  const value = String(formData.get(key) ?? "").trim()
-  return value ? manilaLocalInputToIso(value) : null
-}
+function EventStatusBadge({
+  event,
+  now,
+}: {
+  event: IrrigationEvent
+  now: Date
+}) {
+  if (event.archivedAt) {
+    return <Badge variant="secondary">Archived</Badge>
+  }
 
-function MassCell({ value }: { value: number | null }) {
-  return (
-    <TableCell className="text-right tabular-nums">
-      {value === null ? "--" : value.toFixed(3)}
-    </TableCell>
-  )
+  const summary = weightSlotSummary(event, now)
+
+  if (now.getTime() >= Date.parse(event.cutoffAt)) {
+    return summary.skippedCount > 0 ? (
+      <Badge variant="secondary">Complete With Skips</Badge>
+    ) : (
+      <Badge>Complete</Badge>
+    )
+  }
+
+  if (summary.dueCount > 0) {
+    return <Badge variant="secondary">Due</Badge>
+  }
+
+  return <Badge variant="outline">Open</Badge>
 }
 
 function IrrigationEventEditRow({
@@ -73,9 +102,9 @@ function IrrigationEventEditRow({
 
   return (
     <TableRow>
-      <TableCell colSpan={8}>
+      <TableCell colSpan={7}>
         <form
-          className="grid gap-3 md:grid-cols-6"
+          className="flex flex-col gap-3"
           onSubmit={async (submitEvent) => {
             submitEvent.preventDefault()
             const formData = new FormData(submitEvent.currentTarget)
@@ -87,10 +116,6 @@ function IrrigationEventEditRow({
                 ),
                 waterL: optionalNumber(formData, "waterL") ?? event.waterL,
                 waterTempC: optionalNumber(formData, "waterTempC"),
-                preMassKg: optionalNumber(formData, "preMassKg"),
-                postMassKg: optionalNumber(formData, "postMassKg"),
-                drainedMassKg: optionalNumber(formData, "drainedMassKg"),
-                drainedAt: optionalIso(formData, "drainedAt"),
                 note: String(formData.get("note") ?? ""),
               })
               onCancel()
@@ -99,100 +124,78 @@ function IrrigationEventEditRow({
             }
           }}
         >
-          <Input
-            aria-label="Watered at"
-            name="wateredAt"
-            type="datetime-local"
-            defaultValue={toManilaDatetimeLocalValue(event.wateredAt)}
-            autoComplete="off"
-          />
-          <Input
-            aria-label="Water liters"
-            name="waterL"
-            type="number"
-            inputMode="decimal"
-            step="0.01"
-            min="0.01"
-            defaultValue={event.waterL.toFixed(2)}
-            autoComplete="off"
-          />
-          <Input
-            aria-label="Pre-water mass"
-            name="preMassKg"
-            type="number"
-            inputMode="decimal"
-            step="0.001"
-            min="0.5"
-            max="20"
-            defaultValue={event.preMassKg ?? ""}
-            autoComplete="off"
-          />
-          <Input
-            aria-label="Post-water mass"
-            name="postMassKg"
-            type="number"
-            inputMode="decimal"
-            step="0.001"
-            min="0.5"
-            max="20"
-            defaultValue={event.postMassKg ?? ""}
-            autoComplete="off"
-          />
-          <Input
-            aria-label="Drained mass"
-            name="drainedMassKg"
-            type="number"
-            inputMode="decimal"
-            step="0.001"
-            min="0.5"
-            max="20"
-            defaultValue={event.drainedMassKg ?? ""}
-            autoComplete="off"
-          />
-          <Input
-            aria-label="Drained at"
-            name="drainedAt"
-            type="datetime-local"
-            defaultValue={
-              event.drainedAt ? toManilaDatetimeLocalValue(event.drainedAt) : ""
-            }
-            autoComplete="off"
-          />
-          <Input
-            aria-label="Water temperature"
-            name="waterTempC"
-            type="number"
-            inputMode="decimal"
-            step="0.1"
-            min="0"
-            max="60"
-            defaultValue={event.waterTempC ?? ""}
-            autoComplete="off"
-          />
-          <Textarea
-            aria-label="Event note"
-            name="note"
-            defaultValue={event.note}
-            className="md:col-span-4"
-            autoComplete="off"
-          />
-          <div className="flex gap-2 md:col-span-1">
-            <Button
-              type="submit"
-              size="icon"
-              aria-label={saving ? "Saving event" : "Save event"}
-              disabled={saving}
-            >
-              {saving ? <Spinner /> : <CheckIcon />}
-            </Button>
+          <FieldGroup className="grid gap-3 md:grid-cols-4">
+            <Field>
+              <FieldLabel htmlFor={`event-${event.id}-watered-at`}>
+                Watered At
+              </FieldLabel>
+              <Input
+                id={`event-${event.id}-watered-at`}
+                name="wateredAt"
+                type="datetime-local"
+                defaultValue={toManilaDatetimeLocalValue(event.wateredAt)}
+                autoComplete="off"
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor={`event-${event.id}-water-l`}>
+                Water (L)
+              </FieldLabel>
+              <Input
+                id={`event-${event.id}-water-l`}
+                name="waterL"
+                type="number"
+                inputMode="decimal"
+                step="0.01"
+                min="0.01"
+                defaultValue={event.waterL.toFixed(2)}
+                autoComplete="off"
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor={`event-${event.id}-water-temp`}>
+                Water Temp (C)
+              </FieldLabel>
+              <Input
+                id={`event-${event.id}-water-temp`}
+                name="waterTempC"
+                type="number"
+                inputMode="decimal"
+                step="0.1"
+                min="0"
+                max="60"
+                defaultValue={event.waterTempC ?? ""}
+                autoComplete="off"
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor={`event-${event.id}-note`}>Note</FieldLabel>
+              <Textarea
+                id={`event-${event.id}-note`}
+                name="note"
+                defaultValue={event.note}
+                rows={2}
+                autoComplete="off"
+              />
+            </Field>
+          </FieldGroup>
+          <div className="flex justify-end gap-2">
             <Button
               type="button"
               variant="outline"
-              size="icon"
-              aria-label="Cancel edit"
               onClick={onCancel}
+              disabled={saving}
             >
-              <XIcon />
+              <XIcon data-icon="inline-start" />
+              Cancel
+            </Button>
+            <Button type="submit" disabled={saving}>
+              {saving ? (
+                <Spinner data-icon="inline-start" />
+              ) : (
+                <CheckIcon data-icon="inline-start" />
+              )}
+              {saving ? "Saving..." : "Save Event"}
             </Button>
           </div>
         </form>
@@ -220,6 +223,16 @@ export function IrrigationEventsTable({
 }) {
   const [editingId, setEditingId] = React.useState<string | null>(null)
   const [archivingId, setArchivingId] = React.useState<string | null>(null)
+  const [detailsId, setDetailsId] = React.useState<string | null>(null)
+  const [now, setNow] = React.useState(() => new Date())
+  const selectedEvent =
+    events.find((event) => event.id === detailsId) ?? null
+
+  React.useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 60_000)
+
+    return () => window.clearInterval(timer)
+  }, [])
 
   return (
     <div className="flex flex-col gap-3">
@@ -237,32 +250,34 @@ export function IrrigationEventsTable({
           Show archived
         </label>
       </div>
-      <div className="overflow-x-auto rounded-lg border">
-        <Table>
+      <div className="overflow-x-auto rounded-md border">
+        <Table className="min-w-[56rem]">
           <TableHeader>
             <TableRow>
               <TableHead>Watered</TableHead>
               <TableHead className="text-right">Water</TableHead>
-              <TableHead className="text-right">Pre</TableHead>
-              <TableHead className="text-right">Post</TableHead>
-              <TableHead className="text-right">Drained</TableHead>
+              <TableHead>Cutoff</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead>Note</TableHead>
+              <TableHead>Weight Logs</TableHead>
+              <TableHead className="hidden md:table-cell">Note</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
-              <TableRowsSkeleton columns={8} rows={5} />
+              <TableRowsSkeleton columns={7} rows={5} />
             ) : events.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="h-24 text-center">
+                <TableCell colSpan={7} className="h-24 text-center">
                   No watering events logged.
                 </TableCell>
               </TableRow>
             ) : (
-              events.map((event) =>
-                editingId === event.id ? (
+              events.map((event) => {
+                const summary = weightSlotSummary(event, now)
+                const latest = latestWeightLog(event)
+
+                return editingId === event.id ? (
                   <IrrigationEventEditRow
                     key={event.id}
                     event={event}
@@ -270,28 +285,53 @@ export function IrrigationEventsTable({
                     onSave={onUpdate}
                   />
                 ) : (
-                  <TableRow key={event.id}>
+                  <TableRow
+                    key={event.id}
+                    tabIndex={0}
+                    className="cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                    aria-label={`Open details for watering on ${formatManilaDateTime(event.wateredAt)}`}
+                    onClick={() => setDetailsId(event.id)}
+                    onKeyDown={(keyboardEvent) => {
+                      if (
+                        keyboardEvent.key === "Enter" ||
+                        keyboardEvent.key === " "
+                      ) {
+                        keyboardEvent.preventDefault()
+                        setDetailsId(event.id)
+                      }
+                    }}
+                  >
                     <TableCell className="min-w-44">
                       {formatManilaDateTime(event.wateredAt)}
                     </TableCell>
                     <TableCell className="text-right tabular-nums">
                       {event.waterL.toFixed(2)} L
                     </TableCell>
-                    <MassCell value={event.preMassKg} />
-                    <MassCell value={event.postMassKg} />
-                    <MassCell value={event.drainedMassKg} />
-                    <TableCell>
-                      {event.archivedAt ? (
-                        <Badge variant="secondary">Archived</Badge>
-                      ) : event.drainedMassKg === null ? (
-                        <Badge variant="outline">Open</Badge>
-                      ) : lateWeighLabel(event) ? (
-                        <Badge variant="secondary">{lateWeighLabel(event)}</Badge>
-                      ) : (
-                        <Badge>Closed</Badge>
-                      )}
+                    <TableCell className="tabular-nums">
+                      {formatManilaTime(event.cutoffAt)}
                     </TableCell>
-                    <TableCell className="max-w-52 truncate">
+                    <TableCell>
+                      <EventStatusBadge event={event} now={now} />
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="max-w-full justify-start"
+                        onClick={(clickEvent) => {
+                          clickEvent.stopPropagation()
+                          setDetailsId(event.id)
+                        }}
+                      >
+                        <ListChecksIcon data-icon="inline-start" />
+                        <span className="truncate">
+                          {summary.weighedCount}/{summary.totalSlots}
+                          {latest ? `; ${latest.massKg.toFixed(3)} kg` : ""}
+                        </span>
+                      </Button>
+                    </TableCell>
+                    <TableCell className="hidden max-w-56 truncate md:table-cell">
                       {event.note || "--"}
                     </TableCell>
                     <TableCell>
@@ -301,7 +341,10 @@ export function IrrigationEventsTable({
                           variant="outline"
                           size="icon"
                           aria-label="Edit event"
-                          onClick={() => setEditingId(event.id)}
+                          onClick={(clickEvent) => {
+                            clickEvent.stopPropagation()
+                            setEditingId(event.id)
+                          }}
                         >
                           <PencilIcon />
                         </Button>
@@ -321,6 +364,9 @@ export function IrrigationEventsTable({
                                   event.archivedAt !== null ||
                                   archivingId === event.id
                                 }
+                                onClick={(clickEvent) => {
+                                  clickEvent.stopPropagation()
+                                }}
                               />
                             }
                           >
@@ -330,11 +376,16 @@ export function IrrigationEventsTable({
                               <ArchiveIcon />
                             )}
                           </AlertDialogTrigger>
-                          <AlertDialogContent>
+                          <AlertDialogContent
+                            onClick={(clickEvent) => {
+                              clickEvent.stopPropagation()
+                            }}
+                          >
                             <AlertDialogHeader>
                               <AlertDialogTitle>Archive Event</AlertDialogTitle>
                               <AlertDialogDescription>
-                                This hides the event from active charts and exports.
+                                This hides the event from active charts and
+                                exports.
                               </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
@@ -350,7 +401,9 @@ export function IrrigationEventsTable({
                                   }
                                 }}
                               >
-                                {archivingId === event.id ? "Archiving..." : "Archive"}
+                                {archivingId === event.id
+                                  ? "Archiving..."
+                                  : "Archive"}
                               </AlertDialogAction>
                             </AlertDialogFooter>
                           </AlertDialogContent>
@@ -359,11 +412,20 @@ export function IrrigationEventsTable({
                     </TableCell>
                   </TableRow>
                 )
-              )
+              })
             )}
           </TableBody>
         </Table>
       </div>
+      <IrrigationEventDetailsDialog
+        event={selectedEvent}
+        open={selectedEvent !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDetailsId(null)
+          }
+        }}
+      />
     </div>
   )
 }

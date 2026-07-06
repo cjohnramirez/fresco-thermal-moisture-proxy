@@ -21,16 +21,29 @@ const irrigationEventHeaders = [
   "id",
   "bag_id",
   "watered_at",
+  "cutoff_at",
   "water_l",
   "water_temp_c",
-  "pre_mass_kg",
-  "post_mass_kg",
-  "drained_mass_kg",
-  "drained_at",
+  "weight_log_count",
+  "latest_weight_kg",
+  "weight_logs",
   "note",
   "created_at",
   "archived_at",
 ]
+
+const irrigationWeightLogHeaders = [
+  "event_id",
+  "bag_id",
+  "slot_at",
+  "weighed_at",
+  "mass_kg",
+  "note",
+  "watered_at",
+  "cutoff_at",
+  "archived_at",
+]
+
 const weekAnalysisHeaders = [
   "metric",
   "day",
@@ -80,20 +93,48 @@ export function irrigationEventsToCsv(
     irrigationEventHeaders,
     events
       .filter((event) => includeArchived || event.archivedAt === null)
-      .map((event) => [
-        event.id,
-        event.bagId,
-        event.wateredAt,
-        event.waterL,
-        event.waterTempC,
-        event.preMassKg,
-        event.postMassKg,
-        event.drainedMassKg,
-        event.drainedAt,
-        event.note,
-        event.createdAt,
-        event.archivedAt,
-      ])
+      .map((event) => {
+        const latest = event.weightLogs[event.weightLogs.length - 1] ?? null
+
+        return [
+          event.id,
+          event.bagId,
+          event.wateredAt,
+          event.cutoffAt,
+          event.waterL,
+          event.waterTempC,
+          event.weightLogs.length,
+          latest?.massKg ?? null,
+          JSON.stringify(event.weightLogs),
+          event.note,
+          event.createdAt,
+          event.archivedAt,
+        ]
+      })
+  )
+}
+
+export function irrigationWeightLogsToCsv(
+  events: IrrigationEvent[],
+  includeArchived = false
+) {
+  return rows(
+    irrigationWeightLogHeaders,
+    events
+      .filter((event) => includeArchived || event.archivedAt === null)
+      .flatMap((event) =>
+        event.weightLogs.map((weightLog) => [
+          event.id,
+          event.bagId,
+          weightLog.slotAt,
+          weightLog.weighedAt,
+          weightLog.massKg,
+          weightLog.note,
+          event.wateredAt,
+          event.cutoffAt,
+          event.archivedAt,
+        ])
+      )
   )
 }
 
@@ -140,9 +181,9 @@ export function weekAnalysisToCsv(analysis: WeekAnalysisResult) {
     ])
   }
 
-  for (const row of analysis.firstHourDrainage) {
+  for (const row of analysis.checkpointDrainage) {
     values.push([
-      "first_hour_drainage",
+      "checkpoint_weight_change",
       row.day,
       row.drainageKg,
       "kg",

@@ -56,16 +56,29 @@ export type NormalizedReading = {
   raw: string
 }
 
+export type IrrigationWeightLog = {
+  slotAt: string
+  weighedAt: string
+  massKg: number
+  note: string
+}
+
+export type IrrigationSlotStatus = "logged" | "due" | "upcoming" | "skipped"
+
+export type IrrigationWeightSlot = {
+  slotAt: string
+  status: IrrigationSlotStatus
+  weightLog: IrrigationWeightLog | null
+}
+
 export type IrrigationEvent = {
   id: string
   bagId: string
   wateredAt: string
+  cutoffAt: string
   waterL: number
   waterTempC: number | null
-  preMassKg: number | null
-  postMassKg: number | null
-  drainedMassKg: number | null
-  drainedAt: string | null
+  weightLogs: IrrigationWeightLog[]
   note: string
   createdAt: string
   archivedAt: string | null
@@ -79,16 +92,24 @@ export type WateringStatus =
   | {
       state: "idle"
       event: null
-      dueAt: null
+      cutoffAt: null
+      dueSlotAt: null
+      nextSlotAt: null
       remainingMs: 0
-      overdueMs: 0
+      skippedCount: 0
+      totalSlots: 0
+      weighedCount: 0
     }
   | {
-      state: "counting" | "due" | "overdue"
+      state: "counting" | "due"
       event: IrrigationEvent
-      dueAt: string
+      cutoffAt: string
+      dueSlotAt: string | null
+      nextSlotAt: string | null
       remainingMs: number
-      overdueMs: number
+      skippedCount: number
+      totalSlots: number
+      weighedCount: number
     }
 
 export type BaselineVerdict = "needs_more" | "too_much" | "matched" | "insufficient"
@@ -97,8 +118,8 @@ export type BaselineDrift = {
   points: Array<{
     day: string
     wateredAt: string
-    preMassKg: number | null
-    drainedMassKg: number
+    initialMassKg: number | null
+    finalMassKg: number
   }>
   slopeKgPerDay: number | null
   verdict: BaselineVerdict
@@ -111,7 +132,7 @@ export type DailyWaterUse = {
   waterUseKg: number
 }
 
-export type FirstHourDrainage = {
+export type CheckpointDrainage = {
   day: string
   wateredAt: string
   drainageKg: number
@@ -128,7 +149,7 @@ export type WeighCompletion = {
   completed: number
   total: number
   due: number
-  overdue: number
+  skipped: number
   percent: number
 }
 
@@ -153,7 +174,7 @@ export type ExperimentSummary = {
   }>
   baseline: BaselineDrift
   dailyWaterUse: DailyWaterUse[]
-  firstHourDrainage: FirstHourDrainage[]
+  checkpointDrainage: CheckpointDrainage[]
   wateringRecovery: WateringRecovery[]
   weighCompletion: WeighCompletion
   temperatureStats: {
