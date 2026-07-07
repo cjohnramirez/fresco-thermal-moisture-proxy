@@ -9,6 +9,7 @@ import {
 import { ChartCardHeader } from "@/features/dashboard/components/chart-card-header"
 import { ChartSkeleton } from "@/features/dashboard/components/loading-states"
 import { MetricCard } from "@/features/dashboard/components/metric-card"
+import { NextWateringCard } from "@/features/dashboard/components/next-watering-card"
 import { ProbeCard } from "@/features/dashboard/components/probe-card"
 import { TemperatureChart } from "@/features/dashboard/components/temperature-chart"
 import { WateringStatusCard } from "@/features/dashboard/components/watering-status-card"
@@ -27,6 +28,7 @@ import {
   CHANNELS,
   type ChartRange,
   type ExperimentSummary,
+  type IrrigationEvent,
   type NormalizedReading,
   type WateringStatus,
 } from "@/lib/experiment/types"
@@ -35,6 +37,7 @@ export function DashboardView({
   cloudState,
   health,
   chartRange,
+  irrigationEvents,
   latest,
   loadingState,
   onChartRangeChange,
@@ -48,6 +51,7 @@ export function DashboardView({
   cloudState: CloudState
   health: ReturnType<typeof sensorHealth>
   chartRange: ChartRange
+  irrigationEvents: IrrigationEvent[]
   latest: Map<string, NormalizedReading>
   loadingState: DashboardLoadingState
   onChartRangeChange: (value: ChartRange) => void
@@ -63,11 +67,14 @@ export function DashboardView({
 
   return (
     <div className="flex flex-col gap-4">
-      <WateringStatusCard
-        status={wateringStatus}
-        onLogWatering={onLogWatering}
-        onLogWeight={onLogWeight}
-      />
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+        <WateringStatusCard
+          status={wateringStatus}
+          onLogWatering={onLogWatering}
+          onLogWeight={onLogWeight}
+        />
+        <NextWateringCard events={irrigationEvents} />
+      </div>
 
       <div className="grid gap-3 lg:grid-cols-4">
         <MetricCard

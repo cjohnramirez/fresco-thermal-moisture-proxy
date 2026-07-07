@@ -112,6 +112,13 @@ export type WateringStatus =
       weighedCount: number
     }
 
+export type NextWatering = {
+  state: "idle" | "counting"
+  nowAt: string
+  nextAt: string | null
+  remainingMs: number
+}
+
 export type BaselineVerdict = "needs_more" | "too_much" | "matched" | "insufficient"
 
 export type BaselineDrift = {

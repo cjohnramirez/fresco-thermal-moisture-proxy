@@ -110,11 +110,28 @@ export function LogWateringDialog({
             const formData = new FormData(form)
             setSubmitting(true)
             try {
+              const wateredAtIso = manilaLocalInputToIso(wateredAt)
+              const initialMassKg = optionalNumber(formData, "initialMassKg")
               await onSubmit({
-                wateredAt: manilaLocalInputToIso(wateredAt),
+                wateredAt: wateredAtIso,
                 waterL: optionalNumber(formData, "waterL") ?? 2,
                 waterTempC: optionalNumber(formData, "waterTempC"),
                 note: String(formData.get("note") ?? ""),
+                // Seed the post-watering mass as the first weight log so baseline
+                // drift and water-use start from the initial weight, not the
+                // first 10-minute checkpoint.
+                ...(initialMassKg !== null
+                  ? {
+                      weightLogs: [
+                        {
+                          slotAt: wateredAtIso,
+                          weighedAt: wateredAtIso,
+                          massKg: initialMassKg,
+                          note: "initial",
+                        },
+                      ],
+                    }
+                  : {}),
               })
               form.reset()
               onOpenChange(false)
@@ -164,6 +181,24 @@ export function LogWateringDialog({
                 />
               </Field>
               <Field>
+                <FieldLabel htmlFor="watering-initial-mass">
+                  Initial Weight (kg)
+                </FieldLabel>
+                <Input
+                  id="watering-initial-mass"
+                  name="initialMassKg"
+                  type="number"
+                  inputMode="decimal"
+                  step="0.001"
+                  min="0.5"
+                  max="50"
+                  autoComplete="off"
+                />
+                <FieldDescription>
+                  Bag mass right after watering. Optional baseline.
+                </FieldDescription>
+              </Field>
+              <Field>
                 <FieldLabel htmlFor="watering-water-temp">
                   Water Temp (C)
                 </FieldLabel>
@@ -172,7 +207,7 @@ export function LogWateringDialog({
                   name="waterTempC"
                   type="number"
                   inputMode="decimal"
-                  step="0.1"
+                  step="0.01"
                   min="0"
                   max="60"
                   autoComplete="off"
@@ -333,7 +368,7 @@ export function LogWeightDialog({
                 inputMode="decimal"
                 step="0.001"
                 min="0.5"
-                max="20"
+                max="40"
                 autoComplete="off"
                 required
               />

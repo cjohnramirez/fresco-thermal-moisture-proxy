@@ -412,6 +412,7 @@ export function FrescoAppShell() {
                     chartRange={temperature.chartRange}
                     cloudState={temperature.cloudState}
                     health={temperature.health}
+                    irrigationEvents={temperature.irrigationEvents}
                     latest={temperature.latest}
                     loadingState={temperature.loadingState}
                     onChartRangeChange={temperature.setChartRange}

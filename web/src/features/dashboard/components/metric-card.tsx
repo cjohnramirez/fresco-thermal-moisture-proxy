@@ -26,7 +26,7 @@ export function MetricCard({
     <Card>
       <CardHeader className="pb-2">
         <div className="flex min-w-0 items-center justify-between gap-3">
-          <CardDescription className="min-w-0 break-words">{label}</CardDescription>
+          <CardDescription className="min-w-0 wrap-break-word">{label}</CardDescription>
           <Icon aria-hidden="true" className="text-muted-foreground" />
         </div>
         <CardTitle className="text-2xl">
@@ -37,7 +37,7 @@ export function MetricCard({
         {loading ? (
           <Skeleton className="h-4 w-40" />
         ) : (
-          <p className="break-words text-sm text-muted-foreground">{detail}</p>
+          <p className="wrap-break-word text-sm text-muted-foreground">{detail}</p>
         )}
       </CardContent>
     </Card>

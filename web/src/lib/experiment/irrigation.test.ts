@@ -4,6 +4,7 @@ import {
   computeBaselineDrift,
   computeCheckpointDrainage,
   computeDailyWaterUse,
+  computeNextWatering,
   computeWateringStatus,
   computeWeighCompletion,
   createIrrigationEventSchema,
@@ -85,12 +86,13 @@ describe("irrigation workflow helpers", () => {
     expect(toSupabaseIrrigationPayload(parsed)).toEqual({ water_temp_c: null })
   })
 
-  it("generates 10-minute slots after watering until the 6 PM cutoff", () => {
+  it("generates 10-minute slots after watering, strictly before the 6 PM cutoff", () => {
     const slots = expectedWeightSlots(baseEvent)
 
     expect(slots[0]).toBe("2026-07-02T00:10:00.000Z")
-    expect(slots.at(-1)).toBe("2026-07-02T10:00:00.000Z")
-    expect(slots).toHaveLength(60)
+    // The slot that would land exactly on the 6 PM cutoff is excluded.
+    expect(slots.at(-1)).toBe("2026-07-02T09:50:00.000Z")
+    expect(slots).toHaveLength(59)
   })
 
   it("merges one weight log per schedule slot", () => {
@@ -122,6 +124,23 @@ describe("irrigation workflow helpers", () => {
     expect(
       computeWateringStatus([open], new Date("2026-07-02T10:01:00.000Z"))
     ).toMatchObject({ state: "idle" })
+  })
+
+  it("skips due checkpoints and counts down to the next scheduled slot", () => {
+    const open = { ...baseEvent, weightLogs: [] }
+
+    // At 00:25, 00:10 and 00:20 are due; the countdown skips them for 00:30.
+    expect(
+      computeNextWatering([open], new Date("2026-07-02T00:25:00.000Z"))
+    ).toMatchObject({
+      state: "counting",
+      nextAt: "2026-07-02T00:30:00.000Z",
+      remainingMs: 5 * 60_000,
+    })
+
+    expect(
+      computeNextWatering([], new Date("2026-07-02T00:25:00.000Z"))
+    ).toMatchObject({ state: "idle", nextAt: null })
   })
 
   it("labels logged, due, upcoming, and skipped slots", () => {

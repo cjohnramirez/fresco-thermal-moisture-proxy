@@ -177,6 +177,7 @@ export function FrescoDashboard() {
                 chartRange={dashboard.chartRange}
                 cloudState={dashboard.cloudState}
                 health={dashboard.health}
+                irrigationEvents={dashboard.irrigationEvents}
                 latest={dashboard.latest}
                 loadingState={dashboard.loadingState}
                 onChartRangeChange={dashboard.setChartRange}
